@@ -59,6 +59,13 @@ Optional filters:
 - `book` - Limit to specific book (e.g., `PSA`, `John`, `ROM`)
 - `testament` - Limit to testament (`OT`, `NT`, or `AP`)
 
+### Health Check
+```
+GET /v1/health
+```
+
+Returns API status and database stats (translations count, verses count).
+
 ## Response Example
 
 ```json

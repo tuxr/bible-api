@@ -40,7 +40,7 @@ npm run deploy                 # Deploy to Cloudflare
 
 This is a Bible API running on Cloudflare's edge. The key architectural decisions:
 
-- **Hono** (`src/index.ts`): Lightweight web framework with built-in CORS middleware. Routes are modular under `src/routes/`. The root `/` serves an HTML documentation page.
+- **Hono** (`src/index.ts`): Lightweight web framework with built-in CORS middleware. Routes are modular under `src/routes/`. The root `/` serves an HTML documentation page. `/v1/health` returns API status and stats.
 - **D1 (SQLite)**: Edge database with FTS5 for full-text search. Schema in `schemas/schema.sql`.
 - **FTS5 with external content**: The `verses_fts` virtual table indexes verse text without duplicating storage. Triggers in the schema keep it synchronized.
 
