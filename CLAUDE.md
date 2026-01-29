@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production
 
-**Live API:** https://bible-api.dws-cloud.workers.dev
+**Live API:** https://bible-api.dws-cloud.com
 
 ## Commands
 
