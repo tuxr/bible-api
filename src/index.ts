@@ -177,6 +177,13 @@ app.get("/", (c) => {
     </p>
   </div>
 
+  <div class="endpoint">
+    <span class="method">GET</span>
+    <span class="path">/v1/health</span>
+    <a class="try-link" href="${baseUrl}/v1/health" target="_blank">Try it →</a>
+    <p class="param">Health check endpoint. Returns API status and database stats.</p>
+  </div>
+
   <h2>Response Format</h2>
   <pre><code>{
   "reference": "John 3:16",
@@ -226,6 +233,20 @@ app.route("/v1/search", search);
 app.route("/v1/books", books);
 app.route("/v1/translations", translations);
 app.route("/v1/random", random);
+
+// Health check endpoint
+app.get("/v1/health", async (c) => {
+  const [translationCount, verseCount] = await Promise.all([
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM translations").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM verses").first<{ count: number }>(),
+  ]);
+
+  return c.json({
+    status: "ok",
+    translations: translationCount?.count ?? 0,
+    verses: verseCount?.count ?? 0,
+  });
+});
 
 // 404 handler
 app.notFound((c) => {
