@@ -6,12 +6,15 @@
 import { Hono } from "hono";
 import type { Env, VersesApiResponse } from "../types.js";
 import { getRandomVerse, getTranslation, getBookName } from "../lib/db.js";
-import { notFound } from "../lib/response.js";
+import { notFound, badRequest } from "../lib/response.js";
+import { findBook } from "../lib/books-data.js";
 
 const random = new Hono<{ Bindings: Env }>();
 
 random.get("/", async (c) => {
   const translationId = c.req.query("translation") ?? "web";
+  const bookParam = c.req.query("book");
+  const testamentParam = c.req.query("testament");
 
   // Verify translation exists
   const translation = await getTranslation(c.env.DB, translationId);
@@ -19,8 +22,28 @@ random.get("/", async (c) => {
     return notFound(c, `Translation not found: ${translationId}`);
   }
 
-  // Get random verse
-  const verse = await getRandomVerse(c.env.DB, translationId);
+  // Validate and resolve book parameter
+  let bookId: string | undefined;
+  if (bookParam) {
+    const book = findBook(bookParam);
+    if (!book) {
+      return badRequest(c, `Unknown book: ${bookParam}`);
+    }
+    bookId = book.id;
+  }
+
+  // Validate testament parameter
+  let testament: "OT" | "NT" | "AP" | undefined;
+  if (testamentParam) {
+    const upper = testamentParam.toUpperCase();
+    if (upper !== "OT" && upper !== "NT" && upper !== "AP") {
+      return badRequest(c, "Testament must be OT, NT, or AP");
+    }
+    testament = upper;
+  }
+
+  // Get random verse with filters
+  const verse = await getRandomVerse(c.env.DB, translationId, { bookId, testament });
 
   if (!verse) {
     return notFound(c, "No verses found");

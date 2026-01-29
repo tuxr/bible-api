@@ -196,19 +196,37 @@ export async function getTranslation(
 }
 
 /**
- * Get a random verse
+ * Get a random verse with optional filters
  */
 export async function getRandomVerse(
   db: D1Database,
-  translationId: string
+  translationId: string,
+  options?: {
+    bookId?: string;
+    testament?: "OT" | "NT" | "AP";
+  }
 ): Promise<VerseRow | null> {
-  // Use random ordering - SQLite supports ORDER BY RANDOM()
-  const result = await db
-    .prepare(
-      "SELECT * FROM verses WHERE translation_id = ? ORDER BY RANDOM() LIMIT 1"
-    )
-    .bind(translationId)
-    .first<VerseRow>();
+  let query = `
+    SELECT v.*
+    FROM verses v
+    INNER JOIN books b ON v.book_id = b.id
+    WHERE v.translation_id = ?
+  `;
+  const params: string[] = [translationId];
+
+  if (options?.bookId) {
+    query += " AND v.book_id = ?";
+    params.push(options.bookId);
+  }
+
+  if (options?.testament) {
+    query += " AND b.testament = ?";
+    params.push(options.testament);
+  }
+
+  query += " ORDER BY RANDOM() LIMIT 1";
+
+  const result = await db.prepare(query).bind(...params).first<VerseRow>();
   return result ?? null;
 }
 

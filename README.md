@@ -41,8 +41,12 @@ GET /v1/translations
 
 ### Random Verse
 ```
-GET /v1/random?translation=web
+GET /v1/random?translation=web&book=PSA&testament=OT
 ```
+
+Optional filters:
+- `book` - Limit to specific book (e.g., `PSA`, `John`, `ROM`)
+- `testament` - Limit to testament (`OT`, `NT`, or `AP`)
 
 ## Response Example
 
