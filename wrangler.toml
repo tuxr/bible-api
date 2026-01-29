@@ -3,6 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Keep workers.dev subdomain active as backup
+workers_dev = true
+
 routes = [
   { pattern = "bible-api.dws-cloud.com", custom_domain = true }
 ]
