@@ -6,6 +6,8 @@ A self-hosted Bible API built on Cloudflare Workers with D1 (SQLite + FTS5). Sup
 
 **Base URL:** https://bible-api.dws-cloud.workers.dev
 
+**Interactive Docs:** Visit the base URL in a browser for interactive API documentation with "Try it" links.
+
 ```bash
 # Try it
 curl "https://bible-api.dws-cloud.workers.dev/v1/verses/John%203:16"
