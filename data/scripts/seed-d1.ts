@@ -78,8 +78,8 @@ async function main() {
   console.log("==================\n");
 
   const isProduction = process.argv.includes("--production");
-  const flags = isProduction ? [] : ["--local"];
-  console.log(`Mode: ${isProduction ? "PRODUCTION" : "LOCAL"}\n`);
+  const flags = isProduction ? ["--remote"] : ["--local"];
+  console.log(`Mode: ${isProduction ? "PRODUCTION (remote)" : "LOCAL"}\n`);
 
   // Read parsed files
   let files: string[];

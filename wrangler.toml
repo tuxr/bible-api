@@ -6,4 +6,4 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "bible-db"
-database_id = "placeholder-update-after-create"
+database_id = "2ca76e47-a8ac-4762-960f-948456903507"
