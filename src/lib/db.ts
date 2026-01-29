@@ -95,10 +95,11 @@ export async function searchVerses(
 
   // Build the search query
   // FTS5 MATCH requires specific syntax for the query
+  // Escape double quotes within terms to prevent query injection
   const ftsQuery = query
     .trim()
     .split(/\s+/)
-    .map((term) => `"${term}"`)
+    .map((term) => `"${term.replace(/"/g, '""')}"`)
     .join(" ");
 
   let whereClause = "WHERE v.translation_id = ?";

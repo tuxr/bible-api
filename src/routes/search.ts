@@ -23,6 +23,10 @@ search.get("/", async (c) => {
     return badRequest(c, "Missing required parameter: q");
   }
 
+  if (query.length > 500) {
+    return badRequest(c, "Query too long (max 500 characters)");
+  }
+
   // Validate and resolve book parameter
   let bookId: string | undefined;
   if (bookParam) {
@@ -43,9 +47,11 @@ search.get("/", async (c) => {
     testament = upper;
   }
 
-  // Parse pagination
-  const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 20;
-  const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  // Parse pagination with NaN validation
+  const parsedLimit = limitParam ? parseInt(limitParam, 10) : 20;
+  const parsedOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  const limit = Number.isNaN(parsedLimit) ? 20 : Math.min(Math.max(parsedLimit, 1), 100);
+  const offset = Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
   // Execute search
   const { results, total } = await searchVerses(c.env.DB, query, translationId, {
