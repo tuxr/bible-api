@@ -108,6 +108,18 @@ function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTranslati
       case "c": // Chapter
         const chapterNum = node.attributes.id as string;
         if (chapterNum) {
+          // Save any in-progress verse BEFORE updating chapter
+          // This prevents the last verse of a chapter being saved as verse 0 of the next chapter
+          if (inVerse && verseText.trim() && currentBook && currentChapter > 0) {
+            verses.push({
+              book: currentBook,
+              chapter: currentChapter,
+              verse: currentVerse,
+              text: cleanText(verseText),
+            });
+            verseText = "";
+            inVerse = false;
+          }
           currentChapter = parseInt(chapterNum, 10);
           currentVerse = 0;
         }
