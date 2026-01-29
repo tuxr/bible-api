@@ -215,6 +215,7 @@ app.get("/", (c) => {
       <li>Avoid automated bulk downloads or scraping</li>
       <li>Cache responses in your application when possible</li>
       <li>If you need the complete dataset, source files are available at <a href="https://ebible.org">ebible.org</a></li>
+      <li>For use with AI assistants, see <a href="https://bible-mcp.dws-cloud.com">Bible MCP</a></li>
     </ul>
   </div>
 
