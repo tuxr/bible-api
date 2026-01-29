@@ -16,6 +16,19 @@ import books from "./routes/books.js";
 import translations from "./routes/translations.js";
 import random from "./routes/random.js";
 
+// Favicon SVG - Simple book icon
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#1a1a2e"/>
+  <g fill="#e6edf3">
+    <!-- Left page -->
+    <path d="M12 16c8-4 16-2 20 0v32c-4-2-12-3-20 0V16z" opacity="0.9"/>
+    <!-- Right page -->
+    <path d="M52 16c-8-4-16-2-20 0v32c4-2 12-3 20 0V16z" opacity="0.7"/>
+    <!-- Spine -->
+    <rect x="30" y="14" width="4" height="36" rx="1" opacity="0.5"/>
+  </g>
+</svg>`;
+
 const app = new Hono<{ Bindings: Env }>();
 
 // Enable CORS for all routes
@@ -31,6 +44,7 @@ app.get("/", (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bible API</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     :root {
       --bg: #0d1117;
@@ -226,6 +240,16 @@ app.get("/", (c) => {
 </html>`;
 
   return c.html(html);
+});
+
+// Favicon endpoint
+app.get("/favicon.svg", (c) => {
+  return c.body(FAVICON_SVG, {
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
 });
 
 // Mount routes under /v1
