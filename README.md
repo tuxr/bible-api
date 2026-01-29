@@ -2,6 +2,15 @@
 
 A self-hosted Bible API built on Cloudflare Workers with D1 (SQLite + FTS5). Supports multiple translations, full-text search, and includes both canonical books and Apocrypha (~80 books total).
 
+## Live API
+
+**Base URL:** https://bible-api.dws-cloud.workers.dev
+
+```bash
+# Try it
+curl "https://bible-api.dws-cloud.workers.dev/v1/verses/John%203:16"
+```
+
 ## Features
 
 - **Multiple Translations**: Includes WEB (World English Bible) and KJV (King James Version)

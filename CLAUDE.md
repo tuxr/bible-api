@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Production
+
+**Live API:** https://bible-api.dws-cloud.workers.dev
+
 ## Commands
 
 ```bash
