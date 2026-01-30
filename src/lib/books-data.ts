@@ -143,3 +143,40 @@ export function findBook(nameOrAlias: string): BookData | undefined {
 export function getBooksByTestament(testament: "OT" | "NT" | "AP"): BookData[] {
   return ALL_BOOKS.filter((b) => b.testament === testament);
 }
+
+/**
+ * Get navigation (previous/next chapter) for a given book and chapter
+ */
+export function getChapterNavigation(
+  book: BookData,
+  chapter: number
+): { previous: { book: string; chapter: number } | null; next: { book: string; chapter: number } | null } {
+  let previous: { book: string; chapter: number } | null = null;
+  let next: { book: string; chapter: number } | null = null;
+
+  // Previous chapter
+  if (chapter > 1) {
+    // Previous chapter in same book
+    previous = { book: book.id, chapter: chapter - 1 };
+  } else {
+    // First chapter - go to previous book's last chapter
+    const prevBook = ALL_BOOKS.find((b) => b.order === book.order - 1);
+    if (prevBook) {
+      previous = { book: prevBook.id, chapter: prevBook.chapters };
+    }
+  }
+
+  // Next chapter
+  if (chapter < book.chapters) {
+    // Next chapter in same book
+    next = { book: book.id, chapter: chapter + 1 };
+  } else {
+    // Last chapter - go to next book's first chapter
+    const nextBook = ALL_BOOKS.find((b) => b.order === book.order + 1);
+    if (nextBook) {
+      next = { book: nextBook.id, chapter: 1 };
+    }
+  }
+
+  return { previous, next };
+}

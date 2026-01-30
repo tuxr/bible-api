@@ -237,3 +237,23 @@ export async function getRandomVerse(
 export function getBookName(bookId: string): string {
   return BOOKS_BY_ID.get(bookId)?.name ?? bookId;
 }
+
+/**
+ * Get all verses for a specific chapter
+ */
+export async function getChapterVerses(
+  db: D1Database,
+  bookId: string,
+  chapter: number,
+  translationId: string
+): Promise<VerseRow[]> {
+  const query = `
+    SELECT * FROM verses
+    WHERE translation_id = ?
+      AND book_id = ?
+      AND chapter = ?
+    ORDER BY verse
+  `;
+  const result = await db.prepare(query).bind(translationId, bookId, chapter).all<VerseRow>();
+  return result.results ?? [];
+}

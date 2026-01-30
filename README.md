@@ -36,6 +36,28 @@ GET /v1/verses/:reference?translation=web
 - Multi-chapter: `/v1/verses/Genesis%201:1-2:3`
 - With translation: `/v1/verses/John%203:16?translation=kjv`
 
+### Get Chapter (with Navigation)
+```
+GET /v1/chapters/:book/:chapter?translation=web
+```
+
+Designed for sequential reading apps. Returns a full chapter with `navigation.previous` and `navigation.next` hints for page turning.
+
+**Examples:**
+- `/v1/chapters/Genesis/1`
+- `/v1/chapters/John/3?translation=kjv`
+- `/v1/chapters/GEN/1` (book IDs also work)
+
+**Response includes:**
+```json
+{
+  "navigation": {
+    "previous": null,
+    "next": { "book": "GEN", "chapter": 2 }
+  }
+}
+```
+
 ### Search
 ```
 GET /v1/search?q=love&translation=web&book=ROM&testament=NT&limit=20

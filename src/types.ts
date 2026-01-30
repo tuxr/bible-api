@@ -89,3 +89,28 @@ export interface ErrorResponse {
   error: string;
   status: number;
 }
+
+// Chapter endpoint types
+export interface ChapterNavigation {
+  previous: { book: string; chapter: number } | null;
+  next: { book: string; chapter: number } | null;
+}
+
+export interface ChapterApiResponse {
+  book: {
+    id: string;
+    name: string;
+    testament: "OT" | "NT" | "AP";
+  };
+  chapter: number;
+  translation: {
+    id: string;
+    name: string;
+  };
+  verses: Array<{
+    verse: number;
+    text: string;
+  }>;
+  verse_count: number;
+  navigation: ChapterNavigation;
+}

@@ -11,6 +11,7 @@ import type { Env } from "./types.js";
 
 // Import route handlers
 import verses from "./routes/verses.js";
+import chapters from "./routes/chapters.js";
 import search from "./routes/search.js";
 import books from "./routes/books.js";
 import translations from "./routes/translations.js";
@@ -149,6 +150,15 @@ app.get("/", (c) => {
 
   <div class="endpoint">
     <span class="method">GET</span>
+    <span class="path">/v1/chapters/:book/:chapter</span>
+    <a class="try-link" href="${baseUrl}/v1/chapters/Genesis/1" target="_blank">Try it →</a>
+    <p class="param">Get a full chapter with navigation hints. Designed for sequential reading apps.</p>
+    <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
+    <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> for easy page turning.</p>
+  </div>
+
+  <div class="endpoint">
+    <span class="method">GET</span>
     <span class="path">/v1/search</span>
     <a class="try-link" href="${baseUrl}/v1/search?q=love" target="_blank">Try it →</a>
     <p class="param">Full-text search across all verses.</p>
@@ -254,6 +264,7 @@ app.get("/favicon.svg", (c) => {
 
 // Mount routes under /v1
 app.route("/v1/verses", verses);
+app.route("/v1/chapters", chapters);
 app.route("/v1/search", search);
 app.route("/v1/books", books);
 app.route("/v1/translations", translations);
