@@ -19,6 +19,7 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 - **Full-Text Search**: Powered by SQLite FTS5 for fast, relevant search results
 - **Comprehensive**: 66 canonical books plus Apocrypha/Deuterocanonical books
 - **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded)
+- **Case-Insensitive**: Translation and testament parameters accept any case (e.g., `KJV`, `kjv`, `Kjv`)
 - **Edge Deployment**: Runs on Cloudflare Workers for low-latency responses worldwide
 
 ## API Endpoints
