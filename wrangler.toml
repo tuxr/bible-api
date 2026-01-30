@@ -14,3 +14,6 @@ routes = [
 binding = "DB"
 database_name = "bible-db"
 database_id = "2ca76e47-a8ac-4762-960f-948456903507"
+
+[observability]
+enabled = true

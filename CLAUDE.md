@@ -42,6 +42,7 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 
 - **Hono** (`src/index.ts`): Lightweight web framework with built-in CORS middleware. Routes are modular under `src/routes/`. The root `/` serves an HTML documentation page. `/v1/health` returns API status and stats.
 - **D1 (SQLite)**: Edge database with FTS5 for full-text search. Schema in `schemas/schema.sql`.
+- **Observability**: Enabled in `wrangler.toml`. Logs and traces available in Cloudflare dashboard under Workers → bible-api → Logs.
 - **FTS5 with external content**: The `verses_fts` virtual table indexes verse text without duplicating storage. Triggers in the schema keep it synchronized.
 
 **Reference Parser** (`src/lib/parser.ts`): The most complex component. Parses Bible references like "John 3:16", "Romans 8:28-39", "1 Corinthians 13", abbreviations ("Jn", "Gen"), and URL-encoded input. Returns structured `ParsedReference` objects.
