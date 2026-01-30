@@ -13,7 +13,7 @@ const search = new Hono<{ Bindings: Env }>();
 
 search.get("/", async (c) => {
   const query = c.req.query("q");
-  const translationId = c.req.query("translation") ?? "web";
+  const translationId = (c.req.query("translation") ?? "web").toLowerCase();
   const bookParam = c.req.query("book");
   const testamentParam = c.req.query("testament");
   const limitParam = c.req.query("limit");

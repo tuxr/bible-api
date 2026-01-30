@@ -12,7 +12,7 @@ import { findBook } from "../lib/books-data.js";
 const random = new Hono<{ Bindings: Env }>();
 
 random.get("/", async (c) => {
-  const translationId = c.req.query("translation") ?? "web";
+  const translationId = (c.req.query("translation") ?? "web").toLowerCase();
   const bookParam = c.req.query("book");
   const testamentParam = c.req.query("testament");
 

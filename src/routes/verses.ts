@@ -13,7 +13,7 @@ const verses = new Hono<{ Bindings: Env }>();
 
 verses.get("/:reference", async (c) => {
   const reference = c.req.param("reference");
-  const translationId = c.req.query("translation") ?? "web";
+  const translationId = (c.req.query("translation") ?? "web").toLowerCase();
 
   // Parse the reference
   const parsed = parseReference(decodeURIComponent(reference));
