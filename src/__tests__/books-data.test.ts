@@ -11,8 +11,8 @@ describe("getChapterNavigation", () => {
       const genesis = findBook("Genesis")!;
       const nav = getChapterNavigation(genesis, 25);
 
-      expect(nav.previous).toEqual({ book: "GEN", chapter: 24 });
-      expect(nav.next).toEqual({ book: "GEN", chapter: 26 });
+      expect(nav.previous).toEqual({ book: "GEN", chapter: 24, testament: "OT" });
+      expect(nav.next).toEqual({ book: "GEN", chapter: 26, testament: "OT" });
     });
   });
 
@@ -23,7 +23,7 @@ describe("getChapterNavigation", () => {
 
       // Genesis is the first book, no previous
       expect(nav.previous).toBeNull();
-      expect(nav.next).toEqual({ book: "GEN", chapter: 2 });
+      expect(nav.next).toEqual({ book: "GEN", chapter: 2, testament: "OT" });
     });
 
     it("returns previous book's last chapter for Exodus 1", () => {
@@ -31,17 +31,17 @@ describe("getChapterNavigation", () => {
       const nav = getChapterNavigation(exodus, 1);
 
       // Genesis has 50 chapters
-      expect(nav.previous).toEqual({ book: "GEN", chapter: 50 });
-      expect(nav.next).toEqual({ book: "EXO", chapter: 2 });
+      expect(nav.previous).toEqual({ book: "GEN", chapter: 50, testament: "OT" });
+      expect(nav.next).toEqual({ book: "EXO", chapter: 2, testament: "OT" });
     });
 
     it("returns Malachi as previous for Matthew 1", () => {
       const matthew = findBook("Matthew")!;
       const nav = getChapterNavigation(matthew, 1);
 
-      // Malachi has 4 chapters
-      expect(nav.previous).toEqual({ book: "MAL", chapter: 4 });
-      expect(nav.next).toEqual({ book: "MAT", chapter: 2 });
+      // Malachi has 4 chapters - crosses OT to NT boundary
+      expect(nav.previous).toEqual({ book: "MAL", chapter: 4, testament: "OT" });
+      expect(nav.next).toEqual({ book: "MAT", chapter: 2, testament: "NT" });
     });
   });
 
@@ -50,21 +50,17 @@ describe("getChapterNavigation", () => {
       const genesis = findBook("Genesis")!;
       const nav = getChapterNavigation(genesis, 50);
 
-      expect(nav.previous).toEqual({ book: "GEN", chapter: 49 });
-      expect(nav.next).toEqual({ book: "EXO", chapter: 1 });
+      expect(nav.previous).toEqual({ book: "GEN", chapter: 49, testament: "OT" });
+      expect(nav.next).toEqual({ book: "EXO", chapter: 1, testament: "OT" });
     });
 
-    it("returns null for last chapter of Revelation", () => {
+    it("returns Tobit as next for Revelation 22 (crosses into Apocrypha)", () => {
       const revelation = findBook("Revelation")!;
       const nav = getChapterNavigation(revelation, 22);
 
-      expect(nav.previous).toEqual({ book: "REV", chapter: 21 });
-      // Revelation is the last canonical book, but Apocrypha follows
-      // Check if there's a next book
-      const nextBook = ALL_BOOKS.find(b => b.order === revelation.order + 1);
-      if (nextBook) {
-        expect(nav.next).toEqual({ book: nextBook.id, chapter: 1 });
-      }
+      expect(nav.previous).toEqual({ book: "REV", chapter: 21, testament: "NT" });
+      // Apocrypha follows NT - client can use testament to decide behavior
+      expect(nav.next).toEqual({ book: "TOB", chapter: 1, testament: "AP" });
     });
   });
 
@@ -74,8 +70,8 @@ describe("getChapterNavigation", () => {
       const nav = getChapterNavigation(jude, 1);
 
       // Jude only has 1 chapter, so next goes to Revelation
-      expect(nav.previous).toEqual({ book: "3JN", chapter: 1 }); // 3 John is before Jude
-      expect(nav.next).toEqual({ book: "REV", chapter: 1 });
+      expect(nav.previous).toEqual({ book: "3JN", chapter: 1, testament: "NT" });
+      expect(nav.next).toEqual({ book: "REV", chapter: 1, testament: "NT" });
     });
 
     it("handles Obadiah (single chapter)", () => {
@@ -83,8 +79,8 @@ describe("getChapterNavigation", () => {
       const nav = getChapterNavigation(obadiah, 1);
 
       // Amos has 9 chapters, Jonah follows Obadiah
-      expect(nav.previous).toEqual({ book: "AMO", chapter: 9 });
-      expect(nav.next).toEqual({ book: "JON", chapter: 1 });
+      expect(nav.previous).toEqual({ book: "AMO", chapter: 9, testament: "OT" });
+      expect(nav.next).toEqual({ book: "JON", chapter: 1, testament: "OT" });
     });
   });
 
@@ -93,17 +89,35 @@ describe("getChapterNavigation", () => {
       const tobit = findBook("Tobit")!;
       const nav = getChapterNavigation(tobit, 7);
 
-      expect(nav.previous).toEqual({ book: "TOB", chapter: 6 });
-      expect(nav.next).toEqual({ book: "TOB", chapter: 8 });
+      expect(nav.previous).toEqual({ book: "TOB", chapter: 6, testament: "AP" });
+      expect(nav.next).toEqual({ book: "TOB", chapter: 8, testament: "AP" });
     });
 
     it("handles first Apocrypha book (Tobit chapter 1)", () => {
       const tobit = findBook("Tobit")!;
       const nav = getChapterNavigation(tobit, 1);
 
-      // Revelation (22 chapters) comes before Tobit in our ordering
-      expect(nav.previous).toEqual({ book: "REV", chapter: 22 });
-      expect(nav.next).toEqual({ book: "TOB", chapter: 2 });
+      // Revelation (22 chapters) comes before Tobit - crosses NT to AP boundary
+      expect(nav.previous).toEqual({ book: "REV", chapter: 22, testament: "NT" });
+      expect(nav.next).toEqual({ book: "TOB", chapter: 2, testament: "AP" });
+    });
+  });
+
+  describe("testament boundaries", () => {
+    it("shows testament change from OT to NT", () => {
+      const matthew = findBook("Matthew")!;
+      const nav = getChapterNavigation(matthew, 1);
+
+      expect(nav.previous?.testament).toBe("OT");
+      expect(nav.next?.testament).toBe("NT");
+    });
+
+    it("shows testament change from NT to AP", () => {
+      const revelation = findBook("Revelation")!;
+      const nav = getChapterNavigation(revelation, 22);
+
+      expect(nav.previous?.testament).toBe("NT");
+      expect(nav.next?.testament).toBe("AP");
     });
   });
 });

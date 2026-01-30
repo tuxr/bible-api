@@ -91,9 +91,15 @@ export interface ErrorResponse {
 }
 
 // Chapter endpoint types
+export interface ChapterNavigationTarget {
+  book: string;
+  chapter: number;
+  testament: "OT" | "NT" | "AP";
+}
+
 export interface ChapterNavigation {
-  previous: { book: string; chapter: number } | null;
-  next: { book: string; chapter: number } | null;
+  previous: ChapterNavigationTarget | null;
+  next: ChapterNavigationTarget | null;
 }
 
 export interface ChapterApiResponse {

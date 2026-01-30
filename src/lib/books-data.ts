@@ -145,36 +145,46 @@ export function getBooksByTestament(testament: "OT" | "NT" | "AP"): BookData[] {
 }
 
 /**
- * Get navigation (previous/next chapter) for a given book and chapter
+ * Navigation target with testament info for client-side filtering
+ */
+export interface ChapterNavigationTarget {
+  book: string;
+  chapter: number;
+  testament: "OT" | "NT" | "AP";
+}
+
+/**
+ * Get navigation (previous/next chapter) for a given book and chapter.
+ * Includes testament so clients can decide whether to cross testament boundaries.
  */
 export function getChapterNavigation(
   book: BookData,
   chapter: number
-): { previous: { book: string; chapter: number } | null; next: { book: string; chapter: number } | null } {
-  let previous: { book: string; chapter: number } | null = null;
-  let next: { book: string; chapter: number } | null = null;
+): { previous: ChapterNavigationTarget | null; next: ChapterNavigationTarget | null } {
+  let previous: ChapterNavigationTarget | null = null;
+  let next: ChapterNavigationTarget | null = null;
 
   // Previous chapter
   if (chapter > 1) {
     // Previous chapter in same book
-    previous = { book: book.id, chapter: chapter - 1 };
+    previous = { book: book.id, chapter: chapter - 1, testament: book.testament };
   } else {
     // First chapter - go to previous book's last chapter
     const prevBook = ALL_BOOKS.find((b) => b.order === book.order - 1);
     if (prevBook) {
-      previous = { book: prevBook.id, chapter: prevBook.chapters };
+      previous = { book: prevBook.id, chapter: prevBook.chapters, testament: prevBook.testament };
     }
   }
 
   // Next chapter
   if (chapter < book.chapters) {
     // Next chapter in same book
-    next = { book: book.id, chapter: chapter + 1 };
+    next = { book: book.id, chapter: chapter + 1, testament: book.testament };
   } else {
     // Last chapter - go to next book's first chapter
     const nextBook = ALL_BOOKS.find((b) => b.order === book.order + 1);
     if (nextBook) {
-      next = { book: nextBook.id, chapter: 1 };
+      next = { book: nextBook.id, chapter: 1, testament: nextBook.testament };
     }
   }
 

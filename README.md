@@ -53,10 +53,12 @@ Designed for sequential reading apps. Returns a full chapter with `navigation.pr
 {
   "navigation": {
     "previous": null,
-    "next": { "book": "GEN", "chapter": 2 }
+    "next": { "book": "GEN", "chapter": 2, "testament": "OT" }
   }
 }
 ```
+
+Navigation includes `testament` (OT/NT/AP) so clients can handle boundaries (e.g., stop at Revelation or continue into Apocrypha).
 
 ### Search
 ```

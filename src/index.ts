@@ -154,7 +154,7 @@ app.get("/", (c) => {
     <a class="try-link" href="${baseUrl}/v1/chapters/Genesis/1" target="_blank">Try it →</a>
     <p class="param">Get a full chapter with navigation hints. Designed for sequential reading apps.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
-    <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> for easy page turning.</p>
+    <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> with <code>testament</code> field (OT/NT/AP) for client-side boundary handling.</p>
   </div>
 
   <div class="endpoint">
