@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Production
 
 **Live API:** https://bible-api.dws-cloud.com
+**Documentation:** https://tuxr.github.io/bible-api
 
 ## Commands
 
@@ -40,7 +41,8 @@ npm run deploy                 # Deploy to Cloudflare
 
 This is a Bible API running on Cloudflare's edge. The key architectural decisions:
 
-- **Hono** (`src/index.ts`): Lightweight web framework with built-in CORS middleware. Routes are modular under `src/routes/`. The root `/` serves an HTML documentation page. `/v1/health` returns API status and stats.
+- **Hono** (`src/index.ts`): Lightweight web framework with built-in CORS middleware. Routes are modular under `src/routes/`. The root `/` returns JSON API info. `/v1/health` returns API status and stats.
+- **Documentation** (`docs/`): Static HTML served via GitHub Pages. Separated from the API to keep forked copies clean.
 - **D1 (SQLite)**: Edge database with FTS5 for full-text search. Schema in `schemas/schema.sql`.
 - **Observability**: Enabled in `wrangler.toml`. Logs and traces available in Cloudflare dashboard under Workers → bible-api → Logs.
 - **FTS5 with external content**: The `verses_fts` virtual table indexes verse text without duplicating storage. Triggers in the schema keep it synchronized.

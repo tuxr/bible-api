@@ -6,9 +6,9 @@ A self-hosted Bible API built on Cloudflare Workers with D1 (SQLite + FTS5). Sup
 
 **Base URL:** https://bible-api.dws-cloud.com
 
-> **Note:** This is a free, public instance you can use immediately. For production applications with high traffic, consider [deploying your own instance](#deploy-your-own).
+**Documentation:** https://tuxr.github.io/bible-api
 
-**Interactive Docs:** Visit the base URL in a browser for interactive API documentation with "Try it" links.
+> **Note:** This is a free, public instance you can use immediately. For production applications with high traffic, consider [deploying your own instance](#deploy-your-own).
 
 ```bash
 # Try it
