@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Live API:** https://bible-api.dws-cloud.com
 **Documentation:** https://tuxr.github.io/bible-api
+**Wiki:** https://github.com/tuxr/bible-api/wiki
 
 ## Commands
 
