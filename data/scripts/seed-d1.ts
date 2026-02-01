@@ -32,7 +32,7 @@ const TRANSLATION_META: Record<string, { name: string; language: string; license
     name: "World English Bible",
     language: "en",
     license: "Public Domain",
-    description: "A modern English translation in the public domain",
+    description: "A modern English translation in the public domain. Includes Apocrypha/Deuterocanonical books.",
   },
   kjv: {
     name: "King James Version",
