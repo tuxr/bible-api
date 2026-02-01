@@ -6,14 +6,21 @@ compatibility_flags = ["nodejs_compat"]
 # Keep workers.dev subdomain active as backup
 workers_dev = true
 
+# Custom domain configuration - update this for your own deployment
+# Remove or modify the routes section to use your own domain
 routes = [
   { pattern = "bible-api.dws-cloud.com", custom_domain = true }
 ]
 
+# D1 Database binding
+# IMPORTANT: If you're deploying your own instance, you need to:
+# 1. Create your own D1 database: wrangler d1 create bible-db
+# 2. Replace the database_id below with your new database ID
+# 3. Run the schema and seed scripts (see README)
 [[d1_databases]]
 binding = "DB"
 database_name = "bible-db"
-database_id = "2ca76e47-a8ac-4762-960f-948456903507"
+database_id = "2ca76e47-a8ac-4762-960f-948456903507"  # Replace with your own database ID
 
 [observability]
 enabled = true

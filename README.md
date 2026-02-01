@@ -6,6 +6,8 @@ A self-hosted Bible API built on Cloudflare Workers with D1 (SQLite + FTS5). Sup
 
 **Base URL:** https://bible-api.dws-cloud.com
 
+> **Note:** This is a free, public instance you can use immediately. For production applications with high traffic, consider [deploying your own instance](#deploy-your-own).
+
 **Interactive Docs:** Visit the base URL in a browser for interactive API documentation with "Try it" links.
 
 ```bash
@@ -145,6 +147,59 @@ Example error response:
   "text": "For God so loved the world..."
 }
 ```
+
+## Deploy Your Own
+
+Want to run your own instance? The API runs on Cloudflare's free tier.
+
+### Prerequisites
+
+- [Cloudflare account](https://dash.cloudflare.com/sign-up) (free)
+- Node.js 18+
+- Wrangler CLI: `npm install -g wrangler`
+
+### Quick Deploy
+
+```bash
+# Clone the repository
+git clone https://github.com/tuxr/bible-api.git
+cd bible-api
+
+# Install dependencies
+npm install
+
+# Login to Cloudflare
+wrangler login
+
+# Create your D1 database
+wrangler d1 create bible-db
+
+# Update wrangler.toml with your new database_id from the output above
+
+# Download and parse Bible data
+npm run data:download
+npm run data:parse
+
+# Apply schema and seed your database
+npm run db:schema
+npm run db:seed -- --production
+
+# Deploy
+npm run deploy
+```
+
+Your API will be live at `https://bible-api.<your-subdomain>.workers.dev`.
+
+To use a custom domain, update the `routes` section in `wrangler.toml` and configure DNS in your Cloudflare dashboard.
+
+### Cost
+
+Cloudflare Workers free tier includes:
+- 100,000 requests/day
+- 10ms CPU time per request
+- D1 database with 5GB storage
+
+This is more than sufficient for personal projects and moderate traffic.
 
 ## Development
 
