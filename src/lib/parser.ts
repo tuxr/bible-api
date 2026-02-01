@@ -43,6 +43,10 @@ const SINGLE_CHAPTER_BOOKS = new Set([
   "PS2", // Psalm 151
 ]);
 
+// Pattern to extract numeric reference from end of string
+// Matches: chapter, chapter:verse, chapter:verse-verse, chapter:verse-chapter:verse
+const REF_PATTERN = /\s*(\d+)(?::(\d+)(?:\s*[-–—]\s*(\d+)(?::(\d+))?)?)?$/;
+
 /**
  * Parse a Bible reference string into structured data
  *
@@ -57,24 +61,19 @@ const SINGLE_CHAPTER_BOOKS = new Set([
  */
 export function parseReference(input: string): ParseOutcome {
   // Normalize input
+  // Note: Only handle + for query string compatibility (where + means space)
+  // Don't handle %20 here - URL decoding should happen at the route level
   let ref = input
     .trim()
-    .replace(/\+/g, " ") // URL encoded space
-    .replace(/%20/g, " ") // URL encoded space
+    .replace(/\+/g, " ") // Query string encoded space
     .replace(/\s+/g, " "); // Collapse multiple spaces
 
   if (!ref) {
     return { success: false, error: "Empty reference" };
   }
 
-  // Pattern to extract book name and the rest
-  // Book names can start with a number (1 Samuel), have multiple words (Song of Solomon)
-  // The reference part is always at the end: chapter or chapter:verse or chapter:verse-verse or chapter:verse-chapter:verse
-
-  // Try to find where the numeric reference starts
-  // Look for patterns like "3:16" or just "3" at the end
-  const refPattern = /\s*(\d+)(?::(\d+)(?:\s*[-–—]\s*(\d+)(?::(\d+))?)?)?$/;
-  const match = ref.match(refPattern);
+  // Match numeric reference at end of string using module-level pattern
+  const match = ref.match(REF_PATTERN);
 
   if (!match) {
     return { success: false, error: `Could not parse reference: "${input}"` };
@@ -143,7 +142,15 @@ export function parseReference(input: string): ParseOutcome {
     return { success: false, error: `Invalid reference format: "${input}"` };
   }
 
-  // Validation
+  // Verse number validation
+  if (startVerse !== null && startVerse < 1) {
+    return { success: false, error: "Verse number must be at least 1" };
+  }
+  if (endVerse !== null && endVerse < 1) {
+    return { success: false, error: "Verse number must be at least 1" };
+  }
+
+  // Chapter validation
   if (startChapter < 1 || startChapter > book.chapters) {
     return {
       success: false,

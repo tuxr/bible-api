@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
+import { CACHE_NONE } from "./lib/response.js";
 
 // Import route handlers
 import verses from "./routes/verses.js";
@@ -30,16 +31,9 @@ const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"
   </g>
 </svg>`;
 
-const app = new Hono<{ Bindings: Env }>();
-
-// Enable CORS for all routes
-app.use("*", cors());
-
-// Root endpoint - HTML documentation page
-app.get("/", (c) => {
-  const baseUrl = new URL(c.req.url).origin;
-
-  const html = `<!DOCTYPE html>
+// HTML documentation template - pre-built at module level for efficiency
+// Uses {{BASE_URL}} placeholder for runtime substitution
+const HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -125,14 +119,14 @@ app.get("/", (c) => {
   <p class="subtitle">Free REST API for Bible verses with full-text search. Multiple translations, 80+ books including Apocrypha.</p>
 
   <h2>Quick Start</h2>
-  <pre><code>curl "${baseUrl}/v1/verses/John%203:16"</code></pre>
+  <pre><code>curl "{{BASE_URL}}/v1/verses/John%203:16"</code></pre>
 
   <h2>Endpoints</h2>
 
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/verses/:reference</span>
-    <a class="try-link" href="${baseUrl}/v1/verses/John%203:16" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/verses/John%203:16" target="_blank">Try it →</a>
     <p class="param">Get verses by reference. Supports single verses, ranges, and full chapters.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
   </div>
@@ -140,18 +134,18 @@ app.get("/", (c) => {
   <h3>Reference Formats</h3>
   <table>
     <tr><th>Format</th><th>Example</th><th>Try</th></tr>
-    <tr><td>Single verse</td><td><code>John 3:16</code></td><td><a href="${baseUrl}/v1/verses/John%203:16">→</a></td></tr>
-    <tr><td>Verse range</td><td><code>Romans 8:28-39</code></td><td><a href="${baseUrl}/v1/verses/Romans%208:28-39">→</a></td></tr>
-    <tr><td>Full chapter</td><td><code>Psalm 23</code></td><td><a href="${baseUrl}/v1/verses/Psalm%2023">→</a></td></tr>
-    <tr><td>Multi-chapter</td><td><code>Genesis 1:1-2:3</code></td><td><a href="${baseUrl}/v1/verses/Genesis%201:1-2:3">→</a></td></tr>
-    <tr><td>With translation</td><td><code>John 3:16?translation=kjv</code></td><td><a href="${baseUrl}/v1/verses/John%203:16?translation=kjv">→</a></td></tr>
-    <tr><td>Abbreviations</td><td><code>Jn 3:16</code>, <code>Gen 1:1</code></td><td><a href="${baseUrl}/v1/verses/Jn%203:16">→</a></td></tr>
+    <tr><td>Single verse</td><td><code>John 3:16</code></td><td><a href="{{BASE_URL}}/v1/verses/John%203:16">→</a></td></tr>
+    <tr><td>Verse range</td><td><code>Romans 8:28-39</code></td><td><a href="{{BASE_URL}}/v1/verses/Romans%208:28-39">→</a></td></tr>
+    <tr><td>Full chapter</td><td><code>Psalm 23</code></td><td><a href="{{BASE_URL}}/v1/verses/Psalm%2023">→</a></td></tr>
+    <tr><td>Multi-chapter</td><td><code>Genesis 1:1-2:3</code></td><td><a href="{{BASE_URL}}/v1/verses/Genesis%201:1-2:3">→</a></td></tr>
+    <tr><td>With translation</td><td><code>John 3:16?translation=kjv</code></td><td><a href="{{BASE_URL}}/v1/verses/John%203:16?translation=kjv">→</a></td></tr>
+    <tr><td>Abbreviations</td><td><code>Jn 3:16</code>, <code>Gen 1:1</code></td><td><a href="{{BASE_URL}}/v1/verses/Jn%203:16">→</a></td></tr>
   </table>
 
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/chapters/:book/:chapter</span>
-    <a class="try-link" href="${baseUrl}/v1/chapters/Genesis/1" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/chapters/Genesis/1" target="_blank">Try it →</a>
     <p class="param">Get a full chapter with navigation hints. Designed for sequential reading apps.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
     <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> with <code>testament</code> field (OT/NT/AP) for client-side boundary handling.</p>
@@ -160,7 +154,7 @@ app.get("/", (c) => {
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/search</span>
-    <a class="try-link" href="${baseUrl}/v1/search?q=love" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/search?q=love" target="_blank">Try it →</a>
     <p class="param">Full-text search across all verses.</p>
     <p class="param">
       <strong>Query:</strong>
@@ -176,7 +170,7 @@ app.get("/", (c) => {
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/books</span>
-    <a class="try-link" href="${baseUrl}/v1/books" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/books" target="_blank">Try it →</a>
     <p class="param">List all books with chapter counts and metadata.</p>
     <p class="param"><strong>Query:</strong> <code>testament</code> - Filter by OT, NT, or AP</p>
   </div>
@@ -184,14 +178,14 @@ app.get("/", (c) => {
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/translations</span>
-    <a class="try-link" href="${baseUrl}/v1/translations" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/translations" target="_blank">Try it →</a>
     <p class="param">List available translations.</p>
   </div>
 
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/random</span>
-    <a class="try-link" href="${baseUrl}/v1/random" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/random" target="_blank">Try it →</a>
     <p class="param">Get a random verse.</p>
     <p class="param">
       <strong>Query:</strong>
@@ -204,7 +198,7 @@ app.get("/", (c) => {
   <div class="endpoint">
     <span class="method">GET</span>
     <span class="path">/v1/health</span>
-    <a class="try-link" href="${baseUrl}/v1/health" target="_blank">Try it →</a>
+    <a class="try-link" href="{{BASE_URL}}/v1/health" target="_blank">Try it →</a>
     <p class="param">Health check endpoint. Returns API status and database stats.</p>
   </div>
 
@@ -249,7 +243,24 @@ app.get("/", (c) => {
 </body>
 </html>`;
 
-  return c.html(html);
+/**
+ * Generate documentation HTML with the actual base URL
+ */
+function getDocumentationHtml(baseUrl: string): string {
+  return HTML_TEMPLATE.replace(/\{\{BASE_URL\}\}/g, baseUrl);
+}
+
+const app = new Hono<{ Bindings: Env }>();
+
+// Enable CORS for all routes
+app.use("*", cors());
+
+// Root endpoint - HTML documentation page
+app.get("/", (c) => {
+  const baseUrl = new URL(c.req.url).origin;
+  return c.html(getDocumentationHtml(baseUrl), {
+    headers: { "Cache-Control": "public, max-age=86400" },
+  });
 });
 
 // Favicon endpoint
@@ -270,18 +281,39 @@ app.route("/v1/books", books);
 app.route("/v1/translations", translations);
 app.route("/v1/random", random);
 
-// Health check endpoint
+// Health check endpoint - must never crash
 app.get("/v1/health", async (c) => {
-  const [translationCount, verseCount] = await Promise.all([
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM translations").first<{ count: number }>(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM verses").first<{ count: number }>(),
-  ]);
+  try {
+    const [translationCount, verseCount] = await Promise.all([
+      c.env.DB.prepare("SELECT COUNT(*) as count FROM translations").first<{ count: number }>(),
+      c.env.DB.prepare("SELECT COUNT(*) as count FROM verses").first<{ count: number }>(),
+    ]);
 
-  return c.json({
-    status: "ok",
-    translations: translationCount?.count ?? 0,
-    verses: verseCount?.count ?? 0,
-  });
+    return c.json(
+      {
+        status: "ok",
+        translations: translationCount?.count ?? 0,
+        verses: verseCount?.count ?? 0,
+      },
+      {
+        headers: { "Cache-Control": CACHE_NONE },
+      }
+    );
+  } catch (err) {
+    console.error("Health check database error:", err);
+    return c.json(
+      {
+        status: "degraded",
+        error: "Database unavailable",
+        translations: 0,
+        verses: 0,
+      },
+      {
+        status: 503,
+        headers: { "Cache-Control": CACHE_NONE },
+      }
+    );
+  }
 });
 
 // 404 handler

@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import type { Env, ChapterApiResponse } from "../types.js";
 import { getChapterVerses, getTranslation } from "../lib/db.js";
 import { findBook, getChapterNavigation } from "../lib/books-data.js";
-import { badRequest, notFound } from "../lib/response.js";
+import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
 
 const chapters = new Hono<{ Bindings: Env }>();
 
@@ -38,13 +38,21 @@ chapters.get("/:book/:chapter", async (c) => {
   }
 
   // Verify translation exists
-  const translation = await getTranslation(c.env.DB, translationId);
-  if (!translation) {
+  const translationResult = await getTranslation(c.env.DB, translationId);
+  if (!translationResult.success) {
+    return serviceUnavailable(c, translationResult.error);
+  }
+  if (!translationResult.data) {
     return notFound(c, `Translation not found: ${translationId}`);
   }
+  const translation = translationResult.data;
 
   // Fetch verses for this chapter
-  const verseRows = await getChapterVerses(c.env.DB, book.id, chapter, translationId);
+  const versesResult = await getChapterVerses(c.env.DB, book.id, chapter, translationId);
+  if (!versesResult.success) {
+    return serviceUnavailable(c, versesResult.error);
+  }
+  const verseRows = versesResult.data;
 
   if (verseRows.length === 0) {
     return notFound(c, `No verses found for ${book.name} ${chapter}`);
@@ -72,7 +80,7 @@ chapters.get("/:book/:chapter", async (c) => {
     navigation,
   };
 
-  return c.json(response);
+  return jsonWithCache(c, response, CACHE_IMMUTABLE);
 });
 
 export default chapters;

@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import type { Env, SearchApiResponse } from "../types.js";
 import { searchVerses, getBookName } from "../lib/db.js";
-import { badRequest } from "../lib/response.js";
+import { badRequest, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
 
 const search = new Hono<{ Bindings: Env }>();
@@ -54,12 +54,18 @@ search.get("/", async (c) => {
   const offset = Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
   // Execute search
-  const { results, total } = await searchVerses(c.env.DB, query, translationId, {
+  const searchResult = await searchVerses(c.env.DB, query, translationId, {
     bookId,
     testament,
     limit,
     offset,
   });
+
+  if (!searchResult.success) {
+    return serviceUnavailable(c, searchResult.error);
+  }
+
+  const { results, total } = searchResult.data;
 
   // Build response
   const response: SearchApiResponse = {
@@ -79,7 +85,7 @@ search.get("/", async (c) => {
     }),
   };
 
-  return c.json(response);
+  return jsonWithCache(c, response, CACHE_SHORT);
 });
 
 export default search;

@@ -7,13 +7,20 @@ import type { ParsedReference } from "./parser.js";
 import { BOOKS_BY_ID } from "./books-data.js";
 
 /**
+ * Discriminated union for database operation results
+ */
+export type DbResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+/**
  * Fetch verses for a parsed reference
  */
 export async function getVerses(
   db: D1Database,
   ref: ParsedReference,
   translationId: string
-): Promise<VerseRow[]> {
+): Promise<DbResult<VerseRow[]>> {
   const { book, startChapter, startVerse, endChapter, endVerse } = ref;
 
   let query: string;
@@ -72,12 +79,18 @@ export async function getVerses(
     ];
   }
 
-  const result = await db.prepare(query).bind(...params).all<VerseRow>();
-  return result.results ?? [];
+  try {
+    const result = await db.prepare(query).bind(...params).all<VerseRow>();
+    return { success: true, data: result.results ?? [] };
+  } catch (err) {
+    console.error("Database error in getVerses:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }
 
 /**
  * Search verses using FTS5
+ * Uses a single query with window function to get both results and total count
  */
 export async function searchVerses(
   db: D1Database,
@@ -89,7 +102,7 @@ export async function searchVerses(
     limit?: number;
     offset?: number;
   }
-): Promise<{ results: VerseRow[]; total: number }> {
+): Promise<DbResult<{ results: VerseRow[]; total: number }>> {
   const limit = options?.limit ?? 20;
   const offset = options?.offset ?? 0;
 
@@ -115,22 +128,9 @@ export async function searchVerses(
     params.push(options.testament);
   }
 
-  // Count total matches
-  const countQuery = `
-    SELECT COUNT(*) as total
-    FROM verses v
-    INNER JOIN verses_fts ON v.id = verses_fts.rowid
-    INNER JOIN books b ON v.book_id = b.id
-    ${whereClause}
-    AND verses_fts MATCH ?
-  `;
-
-  const countResult = await db.prepare(countQuery).bind(...params, ftsQuery).first<{ total: number }>();
-  const total = countResult?.total ?? 0;
-
-  // Get results
+  // Single query using window function for count - halves database load
   const searchQuery = `
-    SELECT v.*
+    SELECT v.*, COUNT(*) OVER() as total_count
     FROM verses v
     INNER JOIN verses_fts ON v.id = verses_fts.rowid
     INNER JOIN books b ON v.book_id = b.id
@@ -140,15 +140,28 @@ export async function searchVerses(
     LIMIT ? OFFSET ?
   `;
 
-  const result = await db
-    .prepare(searchQuery)
-    .bind(...params, ftsQuery, limit, offset)
-    .all<VerseRow>();
+  try {
+    const result = await db
+      .prepare(searchQuery)
+      .bind(...params, ftsQuery, limit, offset)
+      .all<VerseRow & { total_count: number }>();
 
-  return {
-    results: result.results ?? [],
-    total,
-  };
+    const results = result.results ?? [];
+    // Get total from first row's window function result, or 0 if no results
+    const firstResult = results[0];
+    const total = firstResult?.total_count ?? 0;
+
+    // Remove total_count from result objects before returning
+    const cleanResults: VerseRow[] = results.map(({ total_count, ...verse }) => verse);
+
+    return {
+      success: true,
+      data: { results: cleanResults, total },
+    };
+  } catch (err) {
+    console.error("Database error in searchVerses:", err);
+    return { success: false, error: "Search query failed" };
+  }
 }
 
 /**
@@ -157,7 +170,7 @@ export async function searchVerses(
 export async function getBooks(
   db: D1Database,
   testament?: "OT" | "NT" | "AP"
-): Promise<BookRow[]> {
+): Promise<DbResult<BookRow[]>> {
   let query = "SELECT * FROM books";
   const params: string[] = [];
 
@@ -168,18 +181,28 @@ export async function getBooks(
 
   query += " ORDER BY book_order";
 
-  const result = await db.prepare(query).bind(...params).all<BookRow>();
-  return result.results ?? [];
+  try {
+    const result = await db.prepare(query).bind(...params).all<BookRow>();
+    return { success: true, data: result.results ?? [] };
+  } catch (err) {
+    console.error("Database error in getBooks:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }
 
 /**
  * Get all translations
  */
-export async function getTranslations(db: D1Database): Promise<TranslationRow[]> {
-  const result = await db
-    .prepare("SELECT * FROM translations ORDER BY id")
-    .all<TranslationRow>();
-  return result.results ?? [];
+export async function getTranslations(db: D1Database): Promise<DbResult<TranslationRow[]>> {
+  try {
+    const result = await db
+      .prepare("SELECT * FROM translations ORDER BY id")
+      .all<TranslationRow>();
+    return { success: true, data: result.results ?? [] };
+  } catch (err) {
+    console.error("Database error in getTranslations:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }
 
 /**
@@ -188,12 +211,17 @@ export async function getTranslations(db: D1Database): Promise<TranslationRow[]>
 export async function getTranslation(
   db: D1Database,
   id: string
-): Promise<TranslationRow | null> {
-  const result = await db
-    .prepare("SELECT * FROM translations WHERE id = ?")
-    .bind(id)
-    .first<TranslationRow>();
-  return result ?? null;
+): Promise<DbResult<TranslationRow | null>> {
+  try {
+    const result = await db
+      .prepare("SELECT * FROM translations WHERE id = ?")
+      .bind(id)
+      .first<TranslationRow>();
+    return { success: true, data: result ?? null };
+  } catch (err) {
+    console.error("Database error in getTranslation:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }
 
 /**
@@ -206,7 +234,7 @@ export async function getRandomVerse(
     bookId?: string;
     testament?: "OT" | "NT" | "AP";
   }
-): Promise<VerseRow | null> {
+): Promise<DbResult<VerseRow | null>> {
   let query = `
     SELECT v.*
     FROM verses v
@@ -227,8 +255,13 @@ export async function getRandomVerse(
 
   query += " ORDER BY RANDOM() LIMIT 1";
 
-  const result = await db.prepare(query).bind(...params).first<VerseRow>();
-  return result ?? null;
+  try {
+    const result = await db.prepare(query).bind(...params).first<VerseRow>();
+    return { success: true, data: result ?? null };
+  } catch (err) {
+    console.error("Database error in getRandomVerse:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }
 
 /**
@@ -246,7 +279,7 @@ export async function getChapterVerses(
   bookId: string,
   chapter: number,
   translationId: string
-): Promise<VerseRow[]> {
+): Promise<DbResult<VerseRow[]>> {
   const query = `
     SELECT * FROM verses
     WHERE translation_id = ?
@@ -254,6 +287,11 @@ export async function getChapterVerses(
       AND chapter = ?
     ORDER BY verse
   `;
-  const result = await db.prepare(query).bind(translationId, bookId, chapter).all<VerseRow>();
-  return result.results ?? [];
+  try {
+    const result = await db.prepare(query).bind(translationId, bookId, chapter).all<VerseRow>();
+    return { success: true, data: result.results ?? [] };
+  } catch (err) {
+    console.error("Database error in getChapterVerses:", err);
+    return { success: false, error: "Database query failed" };
+  }
 }

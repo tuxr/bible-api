@@ -21,6 +21,7 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 - **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded)
 - **Case-Insensitive**: Translation and testament parameters accept any case (e.g., `KJV`, `kjv`, `Kjv`)
 - **Edge Deployment**: Runs on Cloudflare Workers for low-latency responses worldwide
+- **Aggressive Caching**: Cache-Control headers for CDN and browser caching (immutable Bible content cached for 30 days at edge)
 
 ## API Endpoints
 
@@ -89,7 +90,41 @@ Optional filters:
 GET /v1/health
 ```
 
-Returns API status and database stats (translations count, verses count).
+Returns API status and database stats. Returns `status: "ok"` normally, or `status: "degraded"` with HTTP 503 if the database is unavailable.
+
+## Caching
+
+All endpoints include appropriate `Cache-Control` headers for optimal performance:
+
+| Endpoint | Cache Strategy | Edge TTL |
+|----------|---------------|----------|
+| `/v1/verses/*` | Immutable content | 30 days |
+| `/v1/chapters/*` | Immutable content | 30 days |
+| `/v1/books` | Immutable content | 30 days |
+| `/v1/translations` | Immutable content | 30 days |
+| `/v1/search` | Short cache | 1 hour |
+| `/v1/random` | No cache | - |
+| `/v1/health` | No cache | - |
+
+Bible content is immutable, so aggressive caching is safe. Cloudflare's edge network caches responses globally, reducing database load and improving response times.
+
+## Error Handling
+
+The API returns appropriate HTTP status codes with JSON error messages:
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Bad request (invalid reference, unknown book, verse 0, etc.) |
+| `404` | Not found (no verses match, unknown translation) |
+| `503` | Service unavailable (database error) |
+
+Example error response:
+```json
+{
+  "error": "Verse number must be at least 1",
+  "status": 400
+}
+```
 
 ## Response Example
 

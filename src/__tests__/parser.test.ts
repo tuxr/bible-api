@@ -148,12 +148,12 @@ describe("parseReference", () => {
       }
     });
 
-    it("parses John%203:16", () => {
+    // Note: %20 is now handled at the route level via decodeURIComponent()
+    // The parser only handles + for query string compatibility
+    it("does not parse %20 directly (routes handle URL decoding)", () => {
       const result = parseReference("John%203:16");
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.reference.book.id).toBe("JHN");
-      }
+      // This fails because %20 is not decoded - routes should call decodeURIComponent first
+      expect(result.success).toBe(false);
     });
   });
 
@@ -266,6 +266,22 @@ describe("parseReference", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain("cannot be before");
+      }
+    });
+
+    it("rejects verse 0", () => {
+      const result = parseReference("John 3:0");
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("at least 1");
+      }
+    });
+
+    it("rejects verse 0 in range", () => {
+      const result = parseReference("John 3:0-5");
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("at least 1");
       }
     });
   });
