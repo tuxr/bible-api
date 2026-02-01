@@ -25,6 +25,14 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 - **Edge Deployment**: Runs on Cloudflare Workers for low-latency responses worldwide
 - **Aggressive Caching**: Cache-Control headers for CDN and browser caching (immutable Bible content cached for 30 days at edge)
 
+## Architecture
+
+```mermaid
+graph LR
+    Client([Client]) -->|HTTPS| Worker[Cloudflare Worker]
+    Worker -->|SQL| D1[(D1)]
+```
+
 ## API Endpoints
 
 ### Get Verses
