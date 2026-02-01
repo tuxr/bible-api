@@ -163,7 +163,7 @@ Want to run your own instance? The API runs on Cloudflare's free tier.
 ### Prerequisites
 
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) (free)
-- Node.js 18+
+- Node.js 22+
 - Wrangler CLI: `npm install -g wrangler`
 
 ### Quick Deploy
@@ -212,7 +212,7 @@ This is more than sufficient for personal projects and moderate traffic.
 ## Development
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 22+
 - Wrangler CLI (`npm install -g wrangler`)
 
 ### Setup
