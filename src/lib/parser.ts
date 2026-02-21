@@ -47,6 +47,9 @@ const SINGLE_CHAPTER_BOOKS = new Set([
 // Matches: chapter, chapter:verse, chapter:verse-verse, chapter:verse-chapter:verse
 const REF_PATTERN = /\s*(\d+)(?::(\d+)(?:\s*[-–—]\s*(\d+)(?::(\d+))?)?)?$/;
 
+// Fallback pattern for verse ranges without colon (e.g., "Philemon 8-16", "Jude 5-10")
+const RANGE_NO_COLON_PATTERN = /\s*(\d+)\s*[-–—]\s*(\d+)$/;
+
 /**
  * Parse a Bible reference string into structured data
  *
@@ -89,6 +92,29 @@ export function parseReference(input: string): ParseOutcome {
   // Find the book
   const book = findBook(bookPart);
   if (!book) {
+    // Fallback: "Philemon 8-16" → main regex grabs only "16", leaving "Philemon 8-" as book.
+    // Try matching a verse range without colon for single-chapter books.
+    const rangeMatch = ref.match(RANGE_NO_COLON_PATTERN);
+    if (rangeMatch) {
+      const fallbackBookPart = ref.slice(0, rangeMatch.index).trim();
+      const fallbackBook = findBook(fallbackBookPart);
+      if (fallbackBook && SINGLE_CHAPTER_BOOKS.has(fallbackBook.id)) {
+        const rangeStart = parseInt(rangeMatch[1]!, 10);
+        const rangeEnd = parseInt(rangeMatch[2]!, 10);
+        if (rangeStart < 1 || rangeEnd < 1) {
+          return { success: false, error: "Verse number must be at least 1" };
+        }
+        if (rangeEnd < rangeStart) {
+          return { success: false, error: `End verse (${rangeEnd}) cannot be before start verse (${rangeStart})` };
+        }
+        const normalized = formatReference(fallbackBook, 1, rangeStart, 1, rangeEnd);
+        return {
+          success: true,
+          reference: { book: fallbackBook, startChapter: 1, startVerse: rangeStart, endChapter: 1, endVerse: rangeEnd },
+          normalized,
+        };
+      }
+    }
     return { success: false, error: `Unknown book: "${bookPart}"` };
   }
 

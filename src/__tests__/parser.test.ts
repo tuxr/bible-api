@@ -198,6 +198,43 @@ describe("parseReference", () => {
         expect(result.reference.startVerse).toBe(1);
       }
     });
+
+    it("parses Philemon 8-16 as verse range", () => {
+      const result = parseReference("Philemon 8-16");
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.reference.book.id).toBe("PHM");
+        expect(result.reference.startChapter).toBe(1);
+        expect(result.reference.startVerse).toBe(8);
+        expect(result.reference.endChapter).toBe(1);
+        expect(result.reference.endVerse).toBe(16);
+        expect(result.normalized).toBe("Philemon 8-16");
+      }
+    });
+
+    it("parses Jude 5-10 as verse range", () => {
+      const result = parseReference("Jude 5-10");
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.reference.book.id).toBe("JUD");
+        expect(result.reference.startChapter).toBe(1);
+        expect(result.reference.startVerse).toBe(5);
+        expect(result.reference.endChapter).toBe(1);
+        expect(result.reference.endVerse).toBe(10);
+        expect(result.normalized).toBe("Jude 5-10");
+      }
+    });
+
+    it("parses 3 John 5-8 as verse range", () => {
+      const result = parseReference("3 John 5-8");
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.reference.book.id).toBe("3JN");
+        expect(result.reference.startChapter).toBe(1);
+        expect(result.reference.startVerse).toBe(5);
+        expect(result.reference.endVerse).toBe(8);
+      }
+    });
   });
 
   describe("Apocrypha books", () => {
