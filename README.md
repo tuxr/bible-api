@@ -22,7 +22,7 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 - **Multiple Translations**: Includes WEB (World English Bible) and KJV (King James Version)
 - **Full-Text Search**: Powered by SQLite FTS5 for fast, relevant search results
 - **Comprehensive**: 66 canonical books plus Apocrypha/Deuterocanonical books
-- **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded)
+- **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded, comma-separated with context inheritance)
 - **Case-Insensitive**: Translation and testament parameters accept any case (e.g., `KJV`, `kjv`, `Kjv`)
 - **Edge Deployment**: Runs on Cloudflare Workers for low-latency responses worldwide
 - **Aggressive Caching**: Cache-Control headers for CDN and browser caching (immutable Bible content cached for 30 days at edge)
@@ -47,7 +47,14 @@ GET /v1/verses/:reference?translation=web
 - Verse range: `/v1/verses/Romans%208:28-39`
 - Full chapter: `/v1/verses/Psalm%2023`
 - Multi-chapter: `/v1/verses/Genesis%201:1-2:3`
+- Comma-separated: `/v1/verses/Romans%2014:14,%2022-23`
 - With translation: `/v1/verses/John%203:16?translation=kjv`
+
+**Comma-separated references** support context inheritance — subsequent segments inherit the book and/or chapter from the previous reference:
+- `Romans 14:14, 22-23` → Romans 14:14 + Romans 14:22-23 (inherits book and chapter)
+- `Psalm 23, 24` → Psalms 23 + Psalms 24 (inherits book)
+- `Genesis 1:1, 2:3` → Genesis 1:1 + Genesis 2:3 (inherits book, new chapter)
+- `John 3:16, Romans 8:28` → two independent references
 
 ### Get Chapter (with Navigation)
 ```
