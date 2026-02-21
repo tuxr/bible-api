@@ -48,7 +48,7 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 - **Observability**: Enabled in `wrangler.toml`. Logs and traces available in Cloudflare dashboard under Workers → bible-api → Logs.
 - **FTS5 with external content**: The `verses_fts` virtual table indexes verse text without duplicating storage. Triggers in the schema keep it synchronized.
 
-**Reference Parser** (`src/lib/parser.ts`): The most complex component. Parses Bible references like "John 3:16", "Romans 8:28-39", "1 Corinthians 13", abbreviations ("Jn", "Gen"), and URL-encoded input. Returns structured `ParsedReference` objects.
+**Reference Parser** (`src/lib/parser.ts`): The most complex component. Parses Bible references like "John 3:16", "Romans 8:28-39", "1 Corinthians 13", abbreviations ("Jn", "Gen"), and URL-encoded input. Returns structured `ParsedReference` objects. Also supports comma-separated references with context inheritance (e.g., "Romans 14:14, 22-23" inherits book and chapter; "Psalm 23, 24" inherits book) via `parseMultipleReferences()`.
 
 **Book Data** (`src/lib/books-data.ts`): Contains 86 books (OT + NT + Apocrypha) with USFX IDs, aliases, and chapter counts. The `findBook()` function resolves any book name/alias to its canonical data. Single-chapter books (Jude, Philemon, 2 John, 3 John, Obadiah) are handled specially in the parser.
 

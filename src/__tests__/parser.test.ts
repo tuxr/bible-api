@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseReference, formatReference } from "../lib/parser.js";
+import { parseReference, formatReference, parseMultipleReferences, type ParsedReference } from "../lib/parser.js";
 import { findBook } from "../lib/books-data.js";
 
 describe("parseReference", () => {
@@ -345,5 +345,90 @@ describe("formatReference", () => {
   it("formats single-chapter book range", () => {
     const book = findBook("Jude")!;
     expect(formatReference(book, 1, 5, 1, 10)).toBe("Jude 5-10");
+  });
+});
+
+describe("parseMultipleReferences (comma-separated)", () => {
+  it("parses 'Romans 14:14, 22-23' — verse-level inheritance", () => {
+    const result = parseMultipleReferences("Romans 14:14, 22-23");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.references).toHaveLength(2);
+      const [ref0, ref1] = result.references as [ParsedReference, ParsedReference];
+      expect(ref0.book.id).toBe("ROM");
+      expect(ref0.startChapter).toBe(14);
+      expect(ref0.startVerse).toBe(14);
+      expect(ref0.endVerse).toBe(14);
+      expect(ref1.book.id).toBe("ROM");
+      expect(ref1.startChapter).toBe(14);
+      expect(ref1.startVerse).toBe(22);
+      expect(ref1.endVerse).toBe(23);
+      expect(result.normalized).toBe("Romans 14:14, Romans 14:22-23");
+    }
+  });
+
+  it("parses 'Psalm 23, 24' — chapter-level inheritance", () => {
+    const result = parseMultipleReferences("Psalm 23, 24");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.references).toHaveLength(2);
+      const [ref0, ref1] = result.references as [ParsedReference, ParsedReference];
+      expect(ref0.book.id).toBe("PSA");
+      expect(ref0.startChapter).toBe(23);
+      expect(ref0.startVerse).toBeNull();
+      expect(ref1.book.id).toBe("PSA");
+      expect(ref1.startChapter).toBe(24);
+      expect(ref1.startVerse).toBeNull();
+      expect(result.normalized).toBe("Psalms 23, Psalms 24");
+    }
+  });
+
+  it("parses 'Genesis 1:1, 2:3' — book-level inheritance with colon", () => {
+    const result = parseMultipleReferences("Genesis 1:1, 2:3");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.references).toHaveLength(2);
+      const [ref0, ref1] = result.references as [ParsedReference, ParsedReference];
+      expect(ref0.book.id).toBe("GEN");
+      expect(ref0.startChapter).toBe(1);
+      expect(ref0.startVerse).toBe(1);
+      expect(ref1.book.id).toBe("GEN");
+      expect(ref1.startChapter).toBe(2);
+      expect(ref1.startVerse).toBe(3);
+      expect(result.normalized).toBe("Genesis 1:1, Genesis 2:3");
+    }
+  });
+
+  it("parses 'John 3:16, Romans 8:28' — two standalone refs", () => {
+    const result = parseMultipleReferences("John 3:16, Romans 8:28");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.references).toHaveLength(2);
+      const [ref0, ref1] = result.references as [ParsedReference, ParsedReference];
+      expect(ref0.book.id).toBe("JHN");
+      expect(ref0.startChapter).toBe(3);
+      expect(ref0.startVerse).toBe(16);
+      expect(ref1.book.id).toBe("ROM");
+      expect(ref1.startChapter).toBe(8);
+      expect(ref1.startVerse).toBe(28);
+      expect(result.normalized).toBe("John 3:16, Romans 8:28");
+    }
+  });
+
+  it("parses 'Jude 5, 8-10' — single-chapter book edge case", () => {
+    const result = parseMultipleReferences("Jude 5, 8-10");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.references).toHaveLength(2);
+      const [ref0, ref1] = result.references as [ParsedReference, ParsedReference];
+      expect(ref0.book.id).toBe("JUD");
+      expect(ref0.startChapter).toBe(1);
+      expect(ref0.startVerse).toBe(5);
+      expect(ref1.book.id).toBe("JUD");
+      expect(ref1.startChapter).toBe(1);
+      expect(ref1.startVerse).toBe(8);
+      expect(ref1.endVerse).toBe(10);
+      expect(result.normalized).toBe("Jude 5, Jude 8-10");
+    }
   });
 });

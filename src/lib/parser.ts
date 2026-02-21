@@ -235,11 +235,78 @@ export function formatReference(
   return `${book.name} ${startChapter}:${startVerse}-${endChapter}:${endVerse}`;
 }
 
+export interface MultiParseResult {
+  success: true;
+  references: ParsedReference[];
+  normalized: string;
+}
+
+export type MultiParseOutcome = MultiParseResult | ParseError;
+
 /**
- * Parse multiple references separated by semicolons or commas
- * e.g., "John 3:16; Romans 8:28"
+ * Parse multiple references separated by commas with context inheritance.
+ *
+ * Continuation segments (starting with a digit) inherit context from
+ * the previous parsed reference:
+ * - Has colon (e.g., "15:1-3"): inherits book only → "Romans 15:1-3"
+ * - No colon, previous was verse-level: inherits book + chapter → "Romans 14:22-23"
+ * - No colon, previous was chapter-level: inherits book only → "Psalms 24"
+ *
+ * Segments starting with a letter are parsed standalone.
  */
-export function parseMultipleReferences(input: string): ParseOutcome[] {
-  const refs = input.split(/[;,]/).map((r) => r.trim()).filter((r) => r);
-  return refs.map(parseReference);
+export function parseMultipleReferences(input: string): MultiParseOutcome {
+  const segments = input.split(",").map((r) => r.trim()).filter((r) => r);
+
+  if (segments.length === 0) {
+    return { success: false, error: "Empty reference" };
+  }
+
+  const references: ParsedReference[] = [];
+  const normalizedParts: string[] = [];
+  let lastResult: ParseResult | null = null;
+
+  for (const segment of segments) {
+    const isContinuation = /^\d/.test(segment);
+
+    if (isContinuation && lastResult) {
+      const prev = lastResult.reference;
+      let expandedRef: string;
+
+      if (segment.includes(":")) {
+        // Has colon: inherit book only (e.g., "15:1-3" → "Romans 15:1-3")
+        expandedRef = `${prev.book.name} ${segment}`;
+      } else if (prev.startVerse !== null) {
+        // No colon, previous was verse-level: inherit book + chapter
+        // e.g., "22-23" → "Romans 14:22-23"
+        expandedRef = `${prev.book.name} ${prev.startChapter}:${segment}`;
+      } else {
+        // No colon, previous was chapter-level: inherit book only
+        // e.g., "24" after "Psalm 23" → "Psalms 24"
+        expandedRef = `${prev.book.name} ${segment}`;
+      }
+
+      const result = parseReference(expandedRef);
+      if (!result.success) {
+        return result;
+      }
+      references.push(result.reference);
+      normalizedParts.push(result.normalized);
+      lastResult = result;
+    } else {
+      // Standalone reference (starts with letter or is the first segment)
+      const result = parseReference(segment);
+      if (!result.success) {
+        return result;
+      }
+      references.push(result.reference);
+      normalizedParts.push(result.normalized);
+      lastResult = result;
+    }
+  }
+
+  return {
+    success: true,
+    references,
+    normalized: normalizedParts.join(", "),
+  };
 }
