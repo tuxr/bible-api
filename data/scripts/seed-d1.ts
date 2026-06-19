@@ -40,6 +40,12 @@ const TRANSLATION_META: Record<string, { name: string; language: string; license
     license: "Public Domain",
     description: "The 1769 edition of the King James Bible",
   },
+  wlc: {
+    name: "Westminster Leningrad Codex",
+    language: "he",
+    license: "Public Domain (text); CC-BY-SA (lemma/morphology)",
+    description: "Hebrew Old Testament text based on the Westminster Leningrad Codex (Masoretic Text)",
+  },
 };
 
 function escapeSql(str: string): string {

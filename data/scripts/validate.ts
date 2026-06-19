@@ -116,6 +116,10 @@ async function main() {
       console.error(`    ERROR: KJV should have ~31,000 verses`);
       errors++;
     }
+    if (row.translation_id === "wlc" && count < 23000) {
+      console.error(`    ERROR: WLC should have ~23,000 verses`);
+      errors++;
+    }
   }
 
   // Check for duplicates
