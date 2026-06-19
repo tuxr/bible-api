@@ -59,11 +59,15 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 ```
 translations (id, name, language, license, description)
 books (id, name, testament, book_order, chapters, aliases)
-verses (id, translation_id, book_id, chapter, verse, text)
-verses_fts (FTS5 virtual table for search)
+verses (id, translation_id, book_id, chapter, verse, text, text_plain)
+verses_fts (FTS5 virtual table indexing text_plain for search)
 ```
 
-The `translation_id` defaults to "web" (World English Bible). KJV is also available.
+The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebrew OT) are also available.
+
+**WLC search:** Pointed Hebrew display text is stored in `text`; `text_plain` holds unpointed text for FTS5. `src/lib/hebrew.ts` strips diacritics from queries at search time. WLC covers OT books only.
+
+**Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`.
 
 ## Git & Deployment Workflow
 

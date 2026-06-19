@@ -9,6 +9,7 @@ import { readFile, readdir, writeFile, mkdir, access } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
 import { ALL_BOOKS, type BookData } from "../../src/lib/books-data.js";
+import { toSearchPlainText } from "../../src/lib/hebrew.js";
 
 const PARSED_DIR = join(process.cwd(), "data", "parsed");
 
@@ -149,7 +150,8 @@ async function main() {
     let currentBatch: string[] = [];
 
     for (const verse of data.verses) {
-      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}');`;
+      const textPlain = toSearchPlainText(translationId, verse.text);
+      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}');`;
       currentBatch.push(stmt);
 
       if (currentBatch.length >= BATCH_SIZE) {

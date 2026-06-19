@@ -142,7 +142,7 @@ async function main() {
     console.log("  No duplicates found");
   }
 
-  // Check FTS
+  // Check FTS (English)
   console.log("\nChecking FTS index...");
   const ftsResults = await query(`
     SELECT COUNT(*) as count
@@ -154,6 +154,20 @@ async function main() {
 
   if (ftsCount === 0) {
     console.error("  ERROR: FTS index appears empty or broken");
+    errors++;
+  }
+
+  // Check WLC FTS (unpointed Hebrew)
+  const wlcFtsResults = await query(`
+    SELECT COUNT(*) as count
+    FROM verses_fts
+    WHERE verses_fts MATCH 'בראשית'
+  `);
+  const wlcFtsCount = (wlcFtsResults[0]?.count as number) ?? 0;
+  console.log(`  WLC FTS search for 'בראשית' (unpointed): ${wlcFtsCount} results`);
+
+  if (wlcFtsCount === 0) {
+    console.error("  ERROR: WLC Hebrew FTS appears empty or broken (run db:migrate:text-plain)");
     errors++;
   }
 
@@ -183,6 +197,25 @@ async function main() {
       console.error(`  ERROR: ${ref.desc} not found!`);
       errors++;
     }
+  }
+
+  // WLC sample verse (OT only)
+  const wlcGenesis = await query(`
+    SELECT text FROM verses
+    WHERE translation_id = 'wlc'
+      AND book_id = 'GEN'
+      AND chapter = 1
+      AND verse = 1
+    LIMIT 1
+  `);
+
+  if (wlcGenesis.length > 0) {
+    const text = (wlcGenesis[0]?.text as string) ?? "";
+    const preview = text.length > 50 ? text.substring(0, 50) + "..." : text;
+    console.log(`  WLC Genesis 1:1: "${preview}"`);
+  } else {
+    console.error("  ERROR: WLC Genesis 1:1 not found!");
+    errors++;
   }
 
   // Summary
