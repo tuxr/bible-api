@@ -5,6 +5,7 @@
 import type { Env, VerseRow, TranslationRow } from "../types.js";
 import type { ParsedReference } from "./parser.js";
 import { BOOKS_BY_ID } from "./books-data.js";
+import { normalizeSearchQuery } from "./hebrew.js";
 
 /**
  * Discriminated union for database operation results
@@ -189,11 +190,16 @@ export async function searchVerses(
   // Build the search query
   // FTS5 MATCH requires specific syntax for the query
   // Escape double quotes within terms to prevent query injection
-  const ftsQuery = query
-    .trim()
+  const normalizedQuery = normalizeSearchQuery(query);
+  const ftsQuery = normalizedQuery
     .split(/\s+/)
+    .filter((term) => term.length > 0)
     .map((term) => `"${term.replace(/"/g, '""')}"`)
     .join(" ");
+
+  if (ftsQuery.length === 0) {
+    return { success: true, data: { results: [], total: 0 } };
+  }
 
   let whereClause = "WHERE v.translation_id = ?";
   const params: (string | number)[] = [translationId];
@@ -210,7 +216,8 @@ export async function searchVerses(
 
   // Single query using window function for count - halves database load
   const searchQuery = `
-    SELECT v.*, COUNT(*) OVER() as total_count
+    SELECT v.id, v.translation_id, v.book_id, v.chapter, v.verse, v.text,
+           COUNT(*) OVER() as total_count
     FROM verses v
     INNER JOIN verses_fts ON v.id = verses_fts.rowid
     INNER JOIN books b ON v.book_id = b.id

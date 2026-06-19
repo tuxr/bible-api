@@ -54,8 +54,8 @@ describe("API integration (SELF.fetch)", () => {
       const body = await parseJson<{ status: string; translations: number; verses: number }>(res);
       expect(body).toEqual({
         status: "ok",
-        translations: 1,
-        verses: 5,
+        translations: 2,
+        verses: 7,
       });
     });
   });
@@ -227,15 +227,25 @@ describe("API integration (SELF.fetch)", () => {
       expect(res.status).toBe(200);
 
       const body = await res.json();
-      expect(body).toEqual([
-        {
-          id: "web",
-          name: "World English Bible",
-          language: "en",
-          license: "Public Domain",
-          description: "Test translation for integration tests",
-        },
-      ]);
+      expect(body).toEqual(
+        expect.arrayContaining([
+          {
+            id: "web",
+            name: "World English Bible",
+            language: "en",
+            license: "Public Domain",
+            description: "Test translation for integration tests",
+          },
+          {
+            id: "wlc",
+            name: "Westminster Leningrad Codex",
+            language: "he",
+            license: "Public Domain",
+            description: "Hebrew OT test translation",
+          },
+        ])
+      );
+      expect(body).toHaveLength(2);
     });
   });
 

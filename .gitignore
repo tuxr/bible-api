@@ -8,6 +8,7 @@ dist/
 # Data pipeline (large files)
 data/sources/
 data/parsed/
+data/staging/
 
 # Environment
 .env

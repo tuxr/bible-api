@@ -3,6 +3,7 @@
  */
 
 import type { D1Database } from "@cloudflare/workers-types";
+import { toSearchPlainText } from "../../lib/hebrew.js";
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS translations (
@@ -27,6 +28,7 @@ const SCHEMA_STATEMENTS = [
     chapter INTEGER NOT NULL,
     verse INTEGER NOT NULL,
     text TEXT NOT NULL,
+    text_plain TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
@@ -37,19 +39,19 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_books_order ON books(book_order)`,
   `CREATE INDEX IF NOT EXISTS idx_books_testament ON books(testament)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
-    text,
+    text_plain,
     content='verses',
     content_rowid='id'
   )`,
   `CREATE TRIGGER IF NOT EXISTS verses_ai AFTER INSERT ON verses BEGIN
-    INSERT INTO verses_fts(rowid, text) VALUES (new.id, new.text);
+    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
   END`,
   `CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
   END`,
   `CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text) VALUES ('delete', old.id, old.text);
-    INSERT INTO verses_fts(rowid, text) VALUES (new.id, new.text);
+    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
+    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
   END`,
 ];
 
@@ -71,6 +73,20 @@ export async function seedTestData(db: D1Database): Promise<void> {
       "en",
       "Public Domain",
       "Test translation for integration tests"
+    )
+    .run();
+
+  await db
+    .prepare(
+      `INSERT INTO translations (id, name, language, license, description)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .bind(
+      "wlc",
+      "Westminster Leningrad Codex",
+      "he",
+      "Public Domain",
+      "Hebrew OT test translation"
     )
     .run();
 
@@ -96,15 +112,24 @@ export async function seedTestData(db: D1Database): Promise<void> {
     ["web", "GEN", 1, 3, "God said, \"Let there be light,\" and there was light."],
     ["web", "JHN", 3, 16, "For God so loved the world, that he gave his only born Son."],
     ["web", "EXO", 1, 1, "Now these are the names of the sons of Israel."],
+    [
+      "wlc",
+      "GEN",
+      1,
+      1,
+      "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃",
+    ],
+    ["wlc", "GEN", 1, 2, "וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ"],
   ] as const;
 
   for (const [translationId, bookId, chapter, verse, text] of verses) {
+    const textPlain = toSearchPlainText(translationId, text);
     await db
       .prepare(
-        `INSERT INTO verses (translation_id, book_id, chapter, verse, text)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO verses (translation_id, book_id, chapter, verse, text, text_plain)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .bind(translationId, bookId, chapter, verse, text)
+      .bind(translationId, bookId, chapter, verse, text, textPlain)
       .run();
   }
 }

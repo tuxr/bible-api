@@ -24,6 +24,12 @@ const TRANSLATIONS = [
     url: "https://ebible.org/Scriptures/eng-kjv_usfx.zip",
     filename: "eng-kjv_usfx.zip",
   },
+  {
+    id: "wlc",
+    name: "Westminster Leningrad Codex",
+    url: "https://ebible.org/Scriptures/hboWLC_usfx.zip",
+    filename: "hboWLC_usfx.zip",
+  },
 ];
 
 async function ensureDir(dir: string) {

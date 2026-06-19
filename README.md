@@ -19,7 +19,7 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 
 ## Features
 
-- **Multiple Translations**: Includes WEB (World English Bible) and KJV (King James Version)
+- **Multiple Translations**: Includes WEB (World English Bible), KJV (King James Version), and WLC (Westminster Leningrad Codex — Hebrew Old Testament)
 - **Full-Text Search**: Powered by SQLite FTS5 for fast, relevant search results
 - **Comprehensive**: 66 canonical books plus Apocrypha/Deuterocanonical books
 - **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded, comma-separated with context inheritance)
@@ -49,6 +49,7 @@ GET /v1/verses/:reference?translation=web
 - Multi-chapter: `/v1/verses/Genesis%201:1-2:3`
 - Comma-separated: `/v1/verses/Romans%2014:14,%2022-23`
 - With translation: `/v1/verses/John%203:16?translation=kjv`
+- Hebrew OT: `/v1/verses/Genesis%201:1?translation=wlc`
 
 **Comma-separated references** support context inheritance — subsequent segments inherit the book and/or chapter from the previous reference:
 - `Romans 14:14, 22-23` → Romans 14:14 + Romans 14:22-23 (inherits book and chapter)
@@ -84,6 +85,13 @@ Navigation includes `testament` (OT/NT/AP) so clients can handle boundaries (e.g
 ```
 GET /v1/search?q=love&translation=web&book=ROM&testament=NT&limit=20
 ```
+
+Hebrew search (WLC) uses unpointed (consonantal) text — queries with or without niqqud/cantillation both work:
+```
+GET /v1/search?q=בראשית&translation=wlc
+```
+
+**WLC scope:** Old Testament only (~23,000 verses). New Testament books return 404 for verse/chapter lookups.
 
 ### List Books
 ```

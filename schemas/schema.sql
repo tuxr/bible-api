@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS verses (
     chapter INTEGER NOT NULL,
     verse INTEGER NOT NULL,
     text TEXT NOT NULL,
+    text_plain TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
@@ -41,9 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_books_order ON books(book_order);
 CREATE INDEX IF NOT EXISTS idx_books_testament ON books(testament);
 
 -- FTS5 virtual table for full-text search
--- Using external content mode to avoid data duplication
+-- Indexes text_plain (unpointed Hebrew for WLC; same as text for English)
 CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
-    text,
+    text_plain,
     content='verses',
     content_rowid='id'
 );
@@ -52,16 +53,16 @@ CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
 
 -- After INSERT: add new verse to FTS index
 CREATE TRIGGER IF NOT EXISTS verses_ai AFTER INSERT ON verses BEGIN
-    INSERT INTO verses_fts(rowid, text) VALUES (new.id, new.text);
+    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
 END;
 
 -- After DELETE: remove verse from FTS index
 CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
 END;
 
 -- After UPDATE: update verse in FTS index
 CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text) VALUES ('delete', old.id, old.text);
-    INSERT INTO verses_fts(rowid, text) VALUES (new.id, new.text);
+    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
+    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
 END;

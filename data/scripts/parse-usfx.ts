@@ -283,6 +283,8 @@ async function main() {
       translationId = "web";
     } else if (zipFile.includes("kjv")) {
       translationId = "kjv";
+    } else if (zipFile.toLowerCase().includes("wlc")) {
+      translationId = "wlc";
     } else {
       translationId = basename(zipFile, ".zip").replace(/_usfx$/, "");
     }
@@ -295,6 +297,9 @@ async function main() {
         result.name = "World English Bible";
       } else if (translationId === "kjv") {
         result.name = "King James Version";
+      } else if (translationId === "wlc") {
+        result.name = "Westminster Leningrad Codex";
+        result.language = "he";
       }
 
       // Write parsed JSON
