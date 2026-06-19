@@ -1,8 +1,16 @@
 /**
  * Migrate existing D1 databases to add text_plain and rebuild the FTS index.
  *
- * Run after pulling schema changes for Hebrew (WLC) search support:
+ * Run after pulling schema changes for Hebrew (WLC) search support.
+ *
+ * Local (default):
  *   npm run db:migrate:text-plain
+ *
+ * Production (remote D1):
+ *   npm run db:migrate:text-plain -- --remote
+ *
+ * On production the migration is typically run BEFORE WLC is seeded, so the
+ * Hebrew FTS verification is skipped when no WLC rows are present yet.
  */
 
 import { spawn } from "child_process";
@@ -11,6 +19,9 @@ import { toSearchPlainText } from "../../src/lib/hebrew.js";
 interface QueryResult {
   results: Record<string, unknown>[];
 }
+
+// Target the local (default) or remote (production) D1 database.
+const TARGET_FLAG = process.argv.includes("--remote") ? "--remote" : "--local";
 
 function runWrangler(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,7 +57,7 @@ async function query(sql: string): Promise<Record<string, unknown>[]> {
     "d1",
     "execute",
     "bible-db",
-    "--local",
+    TARGET_FLAG,
     "--json",
     `--command=${sql}`,
   ]);
@@ -69,7 +80,7 @@ async function query(sql: string): Promise<Record<string, unknown>[]> {
 }
 
 async function execute(sql: string): Promise<void> {
-  await runWrangler(["d1", "execute", "bible-db", "--local", `--command=${sql}`]);
+  await runWrangler(["d1", "execute", "bible-db", TARGET_FLAG, `--command=${sql}`]);
 }
 
 function escapeSql(str: string): string {
@@ -82,7 +93,8 @@ async function columnExists(): Promise<boolean> {
 }
 
 async function main() {
-  console.log("text_plain migration (local D1)");
+  const targetLabel = TARGET_FLAG === "--remote" ? "remote/production D1" : "local D1";
+  console.log(`text_plain migration (${targetLabel})`);
   console.log("=============================\n");
 
   if (!(await columnExists())) {
@@ -142,15 +154,29 @@ async function main() {
     await execute(stmt);
   }
 
-  const ftsCheck = await query(
-    "SELECT COUNT(*) as count FROM verses_fts WHERE verses_fts MATCH 'בראשית'"
+  // Verify Hebrew FTS only when WLC has been seeded. On production the
+  // migration usually runs before WLC is loaded, in which case an empty
+  // result is expected, not a failure.
+  const wlcCount = await query(
+    "SELECT COUNT(*) as count FROM verses WHERE translation_id = 'wlc'"
   );
-  const count = (ftsCheck[0]?.count as number) ?? 0;
-  console.log(`\nFTS check (unpointed בראשית): ${count} results`);
+  const wlcVerseCount = (wlcCount[0]?.count as number) ?? 0;
 
-  if (count === 0) {
-    console.error("Migration may have failed — FTS returned 0 Hebrew results");
-    process.exit(1);
+  if (wlcVerseCount === 0) {
+    console.log(
+      "\nNo WLC verses present yet — skipping Hebrew FTS check (seed WLC, then re-run validation)."
+    );
+  } else {
+    const ftsCheck = await query(
+      "SELECT COUNT(*) as count FROM verses_fts WHERE verses_fts MATCH 'בראשית'"
+    );
+    const count = (ftsCheck[0]?.count as number) ?? 0;
+    console.log(`\nFTS check (unpointed בראשית): ${count} results`);
+
+    if (count === 0) {
+      console.error("Migration may have failed — FTS returned 0 Hebrew results");
+      process.exit(1);
+    }
   }
 
   console.log("\n✓ Migration complete");

@@ -69,6 +69,27 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 **Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`.
 
+**Upgrading an existing production D1 (WLC rollout):** Merging to `main` auto-deploys the worker. The API is read-only, so WEB/KJV search keeps working before the DB is touched — WLC is simply absent until seeded. Order matters: migrate the schema/FTS *before* seeding WLC.
+
+```bash
+# 1. Add text_plain, backfill existing rows, rebuild FTS against text_plain (remote/prod)
+npm run db:migrate:text-plain -- --remote
+# (Hebrew FTS check is skipped here since WLC isn't seeded yet — expected.)
+
+# 2. Seed WLC into production (seed computes text_plain per row)
+npm run data:download
+npm run data:parse
+npm run db:seed -- --production
+
+# 3. Verify on prod (data:validate only checks --local, so spot-check remote directly)
+npx wrangler d1 execute bible-db --remote --command \
+  "SELECT COUNT(*) FROM verses WHERE translation_id='wlc'"
+npx wrangler d1 execute bible-db --remote --command \
+  "SELECT COUNT(*) FROM verses_fts WHERE verses_fts MATCH 'בראשית'"
+```
+
+Seeding WLC before step 1 will fail on prod (the `text_plain` column won't exist yet).
+
 ## Git & Deployment Workflow
 
 **Important:** This repository deploys automatically to Cloudflare on push to `main`.
