@@ -8,8 +8,11 @@ import type { Env, VersesApiResponse } from "../types.js";
 import { getRandomVerse, getTranslation, getBookName } from "../lib/db.js";
 import { notFound, badRequest, serviceUnavailable, jsonWithCache, CACHE_NONE } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
+import { rateLimitMiddleware, RANDOM_RATE_LIMIT } from "../lib/rate-limit.js";
 
 const random = new Hono<{ Bindings: Env }>();
+
+random.use("*", rateLimitMiddleware((env) => env.RANDOM_RATE_LIMITER, RANDOM_RATE_LIMIT));
 
 random.get("/", async (c) => {
   const translationId = (c.req.query("translation") ?? "web").toLowerCase();

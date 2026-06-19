@@ -64,3 +64,27 @@ verses_fts (FTS5 virtual table for search)
 ```
 
 The `translation_id` defaults to "web" (World English Bible). KJV is also available.
+
+## Git & Deployment Workflow
+
+**Important:** This repository deploys automatically to Cloudflare on push to `main`.
+
+### Rules
+- **Never** work directly on the `main` branch.
+- Always create a feature branch before making changes:
+  ```bash
+  git checkout -b feature/your-change-name
+  ```
+- Make your changes, commit, and push the branch.
+- Open a Pull Request instead of pushing directly to `main`.
+- Only merge to `main` after review (or when explicitly approved).
+
+### Worktrees (Optional)
+For parallel work without switching branches, you may use Git worktrees:
+```bash
+git worktree add ../bible-api-feature feature/your-change-name
+```
+
+### Safety
+- Treat `main` as production.
+- Be cautious with any command that pushes to the remote.

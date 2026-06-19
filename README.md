@@ -129,21 +129,54 @@ Bible content is immutable, so aggressive caching is safe. Cloudflare's edge net
 
 ## Error Handling
 
-The API returns appropriate HTTP status codes with JSON error messages:
+The API returns appropriate HTTP status codes with JSON error messages. The status code is conveyed via the HTTP response status line only — it is not duplicated in the JSON body.
 
 | Status | Meaning |
 |--------|---------|
 | `400` | Bad request (invalid reference, unknown book, verse 0, etc.) |
 | `404` | Not found (no verses match, unknown translation) |
+| `429` | Too many requests (rate limit exceeded on `/v1/search` or `/v1/random`) |
 | `503` | Service unavailable (database error) |
 
-Example error response:
+Example error response (HTTP 400):
 ```json
 {
-  "error": "Verse number must be at least 1",
-  "status": 400
+  "error": "Verse number must be at least 1"
 }
 ```
+
+Unknown routes return HTTP 404 with an optional `hint` field:
+```json
+{
+  "error": "Not found",
+  "hint": "See https://tuxr.github.io/bible-api for documentation"
+}
+```
+
+## Rate Limiting
+
+Per-IP rate limits protect the database-heavy endpoints:
+
+| Endpoint | Limit |
+|----------|-------|
+| `/v1/search` | 30 requests per 60 seconds |
+| `/v1/random` | 60 requests per 60 seconds |
+
+When a limit is exceeded, the API returns HTTP `429` with a JSON body:
+
+```json
+{
+  "error": "Rate limit exceeded"
+}
+```
+
+Response headers on rate-limited endpoints:
+
+| Header | When present | Meaning |
+|--------|--------------|---------|
+| `X-RateLimit-Limit` | All responses | Maximum requests allowed in the window |
+| `X-RateLimit-Remaining` | `429` responses | Requests remaining (`0` when limited) |
+| `Retry-After` | `429` responses | Seconds until the window resets |
 
 ## Response Example
 
@@ -245,6 +278,10 @@ npm run db:seed
 # Start development server
 npm run dev
 ```
+
+### Security
+
+Run `npm audit` to check for dependency vulnerabilities. As of the latest dependency updates, the project reports **0 vulnerabilities**. Dev tooling was upgraded to Vitest 4 and `@cloudflare/vitest-pool-workers` 0.16.x to resolve transitive issues in miniflare/wrangler (undici, ws, esbuild).
 
 ### Testing
 
