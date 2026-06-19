@@ -119,7 +119,16 @@ constraint, so re-seeding them is a safe no-op. Only WLC rows are added.
 
 ## Step 4 — Verify on production
 
-`npm run data:validate` only checks the **local** DB, so verify remote directly:
+Run the validator against remote — it checks verse counts (incl. WLC ≈ 23,213),
+English + Hebrew FTS, duplicates, and sample verses, exiting non-zero on any
+failure:
+
+```bash
+npm run data:validate -- --remote
+```
+
+Expect `✓ All validations passed!`. If you want to spot-check individual values
+directly:
 
 ```bash
 # WLC verse count — expect ~23,213
@@ -129,10 +138,6 @@ npx wrangler d1 execute bible-db --remote \
 # Hebrew FTS (unpointed query) — expect >= 1
 npx wrangler d1 execute bible-db --remote \
   --command "SELECT COUNT(*) FROM verses_fts WHERE verses_fts MATCH 'בראשית'"
-
-# WLC translation registered
-npx wrangler d1 execute bible-db --remote \
-  --command "SELECT id, name, language FROM translations WHERE id='wlc'"
 ```
 
 **Live API smoke test** (against the deployed worker):

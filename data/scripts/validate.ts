@@ -6,6 +6,9 @@
  * - All books present
  * - FTS index working
  * - No duplicate verses
+ *
+ * Targets local D1 by default; pass --remote to validate production:
+ *   npm run data:validate -- --remote
  */
 
 import { spawn } from "child_process";
@@ -14,9 +17,12 @@ interface QueryResult {
   results: Record<string, unknown>[];
 }
 
+// Target the local (default) or remote (production) D1 database.
+const TARGET_FLAG = process.argv.includes("--remote") ? "--remote" : "--local";
+
 function runWranglerQuery(query: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("npx", ["wrangler", "d1", "execute", "bible-db", "--local", "--json", `--command=${query}`], {
+    const proc = spawn("npx", ["wrangler", "d1", "execute", "bible-db", TARGET_FLAG, "--json", `--command=${query}`], {
       shell: false,
     });
 
@@ -62,7 +68,9 @@ async function query(sql: string): Promise<Record<string, unknown>[]> {
 }
 
 async function main() {
+  const targetLabel = TARGET_FLAG === "--remote" ? "remote/production D1" : "local D1";
   console.log("Database Validator");
+  console.log(`(${targetLabel})`);
   console.log("==================\n");
 
   let errors = 0;
