@@ -12,6 +12,7 @@
     "data:download": "tsx data/scripts/download-sources.ts",
     "data:parse": "tsx data/scripts/parse-usfx.ts",
     "data:validate": "tsx data/scripts/validate.ts",
+    "data:derive-versification": "tsx data/scripts/derive-versification.ts",
     "db:schema:local": "wrangler d1 execute bible-db --local --file=./schemas/schema.sql",
     "db:schema": "wrangler d1 execute bible-db --file=./schemas/schema.sql",
     "db:seed": "tsx data/scripts/seed-d1.ts",
