@@ -5,6 +5,8 @@
 // Cloudflare Worker environment bindings
 export interface Env {
   DB: D1Database;
+  SEARCH_RATE_LIMITER: RateLimit;
+  RANDOM_RATE_LIMITER: RateLimit;
 }
 
 // Database row types
@@ -87,7 +89,7 @@ export interface TranslationApiResponse {
 
 export interface ErrorResponse {
   error: string;
-  status: number;
+  hint?: string;
 }
 
 // Chapter endpoint types

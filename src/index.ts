@@ -8,7 +8,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
-import { CACHE_NONE } from "./lib/response.js";
+import { CACHE_NONE, notFound, serverError } from "./lib/response.js";
 
 // Import route handlers
 import verses from "./routes/verses.js";
@@ -92,26 +92,13 @@ app.get("/v1/health", async (c) => {
 
 // 404 handler
 app.notFound((c) => {
-  return c.json(
-    {
-      error: "Not found",
-      status: 404,
-      hint: "See https://tuxr.github.io/bible-api for documentation",
-    },
-    404
-  );
+  return notFound(c, "Not found", "See https://tuxr.github.io/bible-api for documentation");
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error("Unhandled error:", err);
-  return c.json(
-    {
-      error: "Internal server error",
-      status: 500,
-    },
-    500
-  );
+  return serverError(c);
 });
 
 export default app;

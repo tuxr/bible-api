@@ -8,8 +8,11 @@ import type { Env, SearchApiResponse } from "../types.js";
 import { searchVerses, getBookName } from "../lib/db.js";
 import { badRequest, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
+import { rateLimitMiddleware, SEARCH_RATE_LIMIT } from "../lib/rate-limit.js";
 
 const search = new Hono<{ Bindings: Env }>();
+
+search.use("*", rateLimitMiddleware((env) => env.SEARCH_RATE_LIMITER, SEARCH_RATE_LIMIT));
 
 search.get("/", async (c) => {
   const query = c.req.query("q");

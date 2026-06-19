@@ -13,11 +13,21 @@ export const CACHE_SHORT = "public, max-age=300, s-maxage=3600";
 // For dynamic/random content
 export const CACHE_NONE = "no-cache, no-store";
 
-export function errorResponse(c: Context, status: ContentfulStatusCode, message: string) {
-  return c.json({ error: message, status }, status);
+export function errorResponse(
+  c: Context,
+  status: ContentfulStatusCode,
+  message: string,
+  headers?: Record<string, string>
+) {
+  return headers
+    ? c.json({ error: message }, status, headers)
+    : c.json({ error: message }, status);
 }
 
-export function notFound(c: Context, message = "Not found") {
+export function notFound(c: Context, message = "Not found", hint?: string) {
+  if (hint) {
+    return c.json({ error: message, hint }, 404);
+  }
   return errorResponse(c, 404, message);
 }
 
@@ -31,6 +41,14 @@ export function serverError(c: Context, message = "Internal server error") {
 
 export function serviceUnavailable(c: Context, message = "Service temporarily unavailable") {
   return errorResponse(c, 503, message);
+}
+
+export function tooManyRequests(
+  c: Context,
+  message = "Rate limit exceeded",
+  headers?: Record<string, string>
+) {
+  return errorResponse(c, 429, message, headers);
 }
 
 /**

@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import type { Env, VersesApiResponse } from "../types.js";
 import { parseReference, parseMultipleReferences } from "../lib/parser.js";
-import { getVerses, getTranslation, getBookName } from "../lib/db.js";
+import { getVerses, getVersesForMultipleReferences, getTranslation, getBookName } from "../lib/db.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
 
 const verses = new Hono<{ Bindings: Env }>();
@@ -25,21 +25,22 @@ verses.get("/:reference", async (c) => {
   }
   const translation = translationResult.data;
 
-  // Comma-separated references: fan out to multiple queries
+  // Comma-separated references: fetch via single batched UNION ALL query
   if (reference.includes(",")) {
     const parsed = parseMultipleReferences(reference);
     if (!parsed.success) {
       return badRequest(c, parsed.error);
     }
 
-    const allVerseRows = [];
-    for (const ref of parsed.references) {
-      const versesResult = await getVerses(c.env.DB, ref, translationId);
-      if (!versesResult.success) {
-        return serviceUnavailable(c, versesResult.error);
-      }
-      allVerseRows.push(...versesResult.data);
+    const versesResult = await getVersesForMultipleReferences(
+      c.env.DB,
+      parsed.references,
+      translationId
+    );
+    if (!versesResult.success) {
+      return serviceUnavailable(c, versesResult.error);
     }
+    const allVerseRows = versesResult.data;
 
     if (allVerseRows.length === 0) {
       return notFound(c, `No verses found for: ${parsed.normalized}`);
