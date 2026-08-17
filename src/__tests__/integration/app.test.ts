@@ -179,6 +179,14 @@ describe("API integration (SELF.fetch)", () => {
       });
     });
 
+    it("returns 404 for unknown translation", async () => {
+      const res = await SELF.fetch("http://localhost/v1/search?q=love&translation=missing");
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: "Translation not found: missing",
+      });
+    });
+
     it("returns 400 for unknown book filter", async () => {
       const res = await SELF.fetch("http://localhost/v1/search?q=God&book=NotABook");
       expect(res.status).toBe(400);

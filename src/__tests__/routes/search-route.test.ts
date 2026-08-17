@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { VerseRow } from "../../types.js";
-import { createMockLimiter, createRouteEnv } from "../helpers/route-test-helpers.js";
+import { createMockLimiter, createRouteEnv, sampleTranslation } from "../helpers/route-test-helpers.js";
 import { SEARCH_RATE_LIMIT } from "../../lib/rate-limit.js";
 
 const sampleResult: VerseRow = {
@@ -16,13 +16,15 @@ const sampleResult: VerseRow = {
   text: "For God so loved the world...",
 };
 
-const { searchVerses, getBookName } = vi.hoisted(() => ({
+const { searchVerses, getTranslation, getBookName } = vi.hoisted(() => ({
   searchVerses: vi.fn(),
+  getTranslation: vi.fn(),
   getBookName: vi.fn((bookId: string) => (bookId === "JHN" ? "John" : bookId)),
 }));
 
 vi.mock("../../lib/db.js", () => ({
   searchVerses,
+  getTranslation,
   getBookName,
 }));
 
@@ -31,6 +33,7 @@ import search from "../../routes/search.js";
 describe("GET /v1/search route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTranslation.mockResolvedValue({ success: true, data: sampleTranslation });
     searchVerses.mockResolvedValue({
       success: true,
       data: { results: [sampleResult], total: 1 },
@@ -76,6 +79,18 @@ describe("GET /v1/search route", () => {
     });
   });
 
+  it("returns 404 when translation is not found", async () => {
+    getTranslation.mockResolvedValue({ success: true, data: null });
+
+    const res = await search.request("/?q=loved&translation=missing", {}, createRouteEnv());
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: "Translation not found: missing",
+    });
+    expect(searchVerses).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for unknown book filter", async () => {
     const res = await search.request("/?q=God&book=NotABook", {}, createRouteEnv());
 
@@ -119,5 +134,17 @@ describe("GET /v1/search route", () => {
     expect(await res.json()).toEqual({
       error: "Search query failed",
     });
+  });
+
+  it("returns 503 when getTranslation fails", async () => {
+    getTranslation.mockResolvedValue({ success: false, error: "Database query failed" });
+
+    const res = await search.request("/?q=loved", {}, createRouteEnv());
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "Database query failed",
+    });
+    expect(searchVerses).not.toHaveBeenCalled();
   });
 });

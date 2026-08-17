@@ -5,8 +5,8 @@
 
 import { Hono } from "hono";
 import type { Env, SearchApiResponse } from "../types.js";
-import { searchVerses, getBookName } from "../lib/db.js";
-import { badRequest, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
+import { searchVerses, getTranslation, getBookName } from "../lib/db.js";
+import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
 import { rateLimitMiddleware, SEARCH_RATE_LIMIT } from "../lib/rate-limit.js";
 
@@ -28,6 +28,16 @@ search.get("/", async (c) => {
 
   if (query.length > 500) {
     return badRequest(c, "Query too long (max 500 characters)");
+  }
+
+  // Verify translation exists before searching so all translation-scoped endpoints
+  // consistently distinguish an unknown translation from an empty result set.
+  const translationResult = await getTranslation(c.env.DB, translationId);
+  if (!translationResult.success) {
+    return serviceUnavailable(c, translationResult.error);
+  }
+  if (!translationResult.data) {
+    return notFound(c, `Translation not found: ${translationId}`);
   }
 
   // Validate and resolve book parameter
