@@ -171,7 +171,8 @@ export async function getVersesForMultipleReferences(
 
 /**
  * Search verses using FTS5
- * Uses a single query with window function to get both results and total count
+ * Runs the page and count queries independently so the total remains available
+ * when pagination produces an empty page.
  */
 export async function searchVerses(
   db: D1Database,
@@ -214,10 +215,17 @@ export async function searchVerses(
     params.push(options.testament);
   }
 
-  // Single query using window function for count - halves database load
+  const countQuery = `
+    SELECT COUNT(*) as total_count
+    FROM verses v
+    INNER JOIN verses_fts ON v.id = verses_fts.rowid
+    INNER JOIN books b ON v.book_id = b.id
+    ${whereClause}
+    AND verses_fts MATCH ?
+  `;
+
   const searchQuery = `
-    SELECT v.id, v.translation_id, v.book_id, v.chapter, v.verse, v.text,
-           COUNT(*) OVER() as total_count
+    SELECT v.id, v.translation_id, v.book_id, v.chapter, v.verse, v.text
     FROM verses v
     INNER JOIN verses_fts ON v.id = verses_fts.rowid
     INNER JOIN books b ON v.book_id = b.id
@@ -228,22 +236,17 @@ export async function searchVerses(
   `;
 
   try {
-    const result = await db
-      .prepare(searchQuery)
-      .bind(...params, ftsQuery, limit, offset)
-      .all<VerseRow & { total_count: number }>();
+    const [countResult, result] = await Promise.all([
+      db.prepare(countQuery).bind(...params, ftsQuery).first<{ total_count: number }>(),
+      db.prepare(searchQuery).bind(...params, ftsQuery, limit, offset).all<VerseRow>(),
+    ]);
 
+    const total = Number(countResult?.total_count ?? 0);
     const results = result.results ?? [];
-    // Get total from first row's window function result, or 0 if no results
-    const firstResult = results[0];
-    const total = firstResult?.total_count ?? 0;
-
-    // Remove total_count from result objects before returning
-    const cleanResults: VerseRow[] = results.map(({ total_count, ...verse }) => verse);
 
     return {
       success: true,
-      data: { results: cleanResults, total },
+      data: { results, total },
     };
   } catch (err) {
     console.error("Database error in searchVerses:", err);

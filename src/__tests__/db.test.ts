@@ -4,13 +4,17 @@
 
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import { env } from "cloudflare:test";
-import { getVerses, getVersesForMultipleReferences } from "../lib/db.js";
+import { getVerses, getVersesForMultipleReferences, searchVerses } from "../lib/db.js";
 import { BOOKS_BY_ID } from "../lib/books-data.js";
 import { setupTestDatabase } from "./helpers/test-db.js";
 import type { ParsedReference } from "../lib/parser.js";
 import type { VerseRow } from "../types.js";
 
 const genesis = BOOKS_BY_ID.get("GEN")!;
+
+beforeAll(async () => {
+  await setupTestDatabase(env.DB);
+});
 
 function createMultiChapterRef(
   overrides: Partial<Omit<ParsedReference, "book">> & Pick<ParsedReference, "startChapter" | "endChapter">
@@ -140,8 +144,6 @@ describe("getVerses multi-chapter SQL and params", () => {
 
 describe("getVerses multi-chapter results (D1)", () => {
   beforeAll(async () => {
-    await setupTestDatabase(env.DB);
-
     const extraVerses = [
       ["web", "GEN", 2, 1, "Thus the heavens and the earth were finished."],
       ["web", "GEN", 2, 2, "On the seventh day God finished his work."],
@@ -369,6 +371,31 @@ describe("getVerses multi-chapter results (D1)", () => {
       "GEN:2:2",
       "JHN:3:16",
     ]);
+  });
+});
+
+describe("searchVerses pagination (D1)", () => {
+  beforeAll(async () => {
+    for (let verse = 1; verse <= 3; verse++) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+        .bind("web", "GEN", 10, verse, `High offset search match ${verse}`, `High offset search match ${verse}`)
+        .run();
+    }
+  });
+
+  it("returns the full total when the requested page is empty", async () => {
+    const result = await searchVerses(env.DB, "High offset search match", "web", {
+      limit: 20,
+      offset: 10_000,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: { results: [], total: 3 },
+    });
   });
 });
 
