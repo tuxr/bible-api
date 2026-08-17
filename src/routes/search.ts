@@ -8,6 +8,7 @@ import type { Env, SearchApiResponse } from "../types.js";
 import { searchVerses, getBookName } from "../lib/db.js";
 import { badRequest, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
+import { parseDecimalInteger } from "../lib/numbers.js";
 import { rateLimitMiddleware, SEARCH_RATE_LIMIT } from "../lib/rate-limit.js";
 
 const search = new Hono<{ Bindings: Env }>();
@@ -50,11 +51,17 @@ search.get("/", async (c) => {
     testament = upper;
   }
 
-  // Parse pagination with NaN validation
-  const parsedLimit = limitParam ? parseInt(limitParam, 10) : 20;
-  const parsedOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
-  const limit = Number.isNaN(parsedLimit) ? 20 : Math.min(Math.max(parsedLimit, 1), 100);
-  const offset = Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
+  // Parse pagination as strict decimal integers to reject malformed values.
+  const parsedLimit = limitParam === undefined ? 20 : parseDecimalInteger(limitParam);
+  if (parsedLimit === null) {
+    return badRequest(c, `Invalid limit: ${limitParam}`);
+  }
+  const parsedOffset = offsetParam === undefined ? 0 : parseDecimalInteger(offsetParam);
+  if (parsedOffset === null) {
+    return badRequest(c, `Invalid offset: ${offsetParam}`);
+  }
+  const limit = Math.min(Math.max(parsedLimit, 1), 100);
+  const offset = parsedOffset;
 
   // Execute search
   const searchResult = await searchVerses(c.env.DB, query, translationId, {

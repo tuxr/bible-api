@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import type { Env, ChapterApiResponse } from "../types.js";
 import { getChapterVerses, getTranslation } from "../lib/db.js";
 import { findBook, getChapterNavigation } from "../lib/books-data.js";
+import { parseDecimalInteger } from "../lib/numbers.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
 
 const chapters = new Hono<{ Bindings: Env }>();
@@ -26,8 +27,8 @@ chapters.get("/:book/:chapter", async (c) => {
   }
 
   // Validate chapter number
-  const chapter = parseInt(chapterParam, 10);
-  if (isNaN(chapter) || chapter < 1) {
+  const chapter = parseDecimalInteger(chapterParam);
+  if (chapter === null || chapter < 1) {
     return badRequest(c, `Invalid chapter: ${chapterParam}`);
   }
   if (chapter > book.chapters) {
