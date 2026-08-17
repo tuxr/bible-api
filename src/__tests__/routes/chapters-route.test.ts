@@ -81,6 +81,17 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     });
   });
 
+  it("returns 400 for a chapter with trailing non-numeric characters", async () => {
+    const res = await chapters.request("/Genesis/3foo", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Invalid chapter: 3foo",
+    });
+    expect(getTranslation).not.toHaveBeenCalled();
+    expect(getChapterVerses).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when chapter exceeds book length", async () => {
     const res = await chapters.request("/Genesis/999", {}, createRouteEnv());
 

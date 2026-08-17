@@ -109,6 +109,26 @@ describe("GET /v1/search route", () => {
     });
   });
 
+  it("returns 400 for a limit with trailing non-numeric characters", async () => {
+    const res = await search.request("/?q=loved&limit=3foo", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Invalid limit: 3foo",
+    });
+    expect(searchVerses).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a non-numeric search limit", async () => {
+    const res = await search.request("/?q=loved&limit=abc", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Invalid limit: abc",
+    });
+    expect(searchVerses).not.toHaveBeenCalled();
+  });
+
   it("returns 429 when rate limit is exceeded", async () => {
     const limiter = createMockLimiter(false);
     const res = await search.request(
