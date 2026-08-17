@@ -117,6 +117,7 @@
     <tr><td>Multi-chapter</td><td><code>Genesis 1:1-2:3</code></td><td><a href="https://bible-api.dws-cloud.com/v1/verses/Genesis%201:1-2:3" target="_blank">Try</a></td></tr>
     <tr><td>Comma-separated</td><td><code>Romans 14:14, 22-23</code></td><td><a href="https://bible-api.dws-cloud.com/v1/verses/Romans%2014:14,%2022-23" target="_blank">Try</a></td></tr>
     <tr><td>With translation</td><td><code>John 3:16?translation=kjv</code></td><td><a href="https://bible-api.dws-cloud.com/v1/verses/John%203:16?translation=kjv" target="_blank">Try</a></td></tr>
+    <tr><td>Hebrew Old Testament</td><td><code>Genesis 1:1?translation=wlc</code></td><td><a href="https://bible-api.dws-cloud.com/v1/verses/Genesis%201:1?translation=wlc" target="_blank">Try</a></td></tr>
     <tr><td>Abbreviations</td><td><code>Jn 3:16</code>, <code>Gen 1:1</code></td><td><a href="https://bible-api.dws-cloud.com/v1/verses/Jn%203:16" target="_blank">Try</a></td></tr>
   </table>
 
@@ -143,6 +144,7 @@
       <code>limit</code> - Results per page (default: 20) |
       <code>offset</code> - Pagination offset
     </p>
+    <p class="param"><strong>Hebrew (WLC):</strong> Search queries may include or omit niqqud and cantillation marks; they are normalized for matching. <a href="https://bible-api.dws-cloud.com/v1/search?q=%D7%91%D6%B0%D6%BC%D7%A8%D6%B5%D7%90%D7%A9%D6%B4%D7%81%D7%99%D7%AA&amp;translation=wlc" target="_blank">Try a Hebrew search</a></p>
   </div>
 
   <div class="endpoint">
@@ -202,6 +204,7 @@
     <tr><th>ID</th><th>Name</th><th>Notes</th></tr>
     <tr><td><code>web</code></td><td>World English Bible</td><td>Default. Modern English, public domain.</td></tr>
     <tr><td><code>kjv</code></td><td>King James Version</td><td>1769 edition, public domain.</td></tr>
+    <tr><td><code>wlc</code></td><td>Westminster Leningrad Codex</td><td>Hebrew Masoretic Text. Old Testament only (39 books); New Testament verse and chapter requests return 404.</td></tr>
   </table>
 
   <h2>Usage Guidelines</h2>
