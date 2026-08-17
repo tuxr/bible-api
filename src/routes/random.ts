@@ -68,6 +68,7 @@ random.get("/", async (c) => {
     translation: {
       id: translation.id,
       name: translation.name,
+      language: translation.language,
     },
     verses: [
       {

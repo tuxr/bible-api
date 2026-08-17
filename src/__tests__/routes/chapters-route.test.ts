@@ -44,6 +44,25 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     expect(body.navigation.next).toEqual({ book: "GEN", chapter: 2, testament: "OT" });
   });
 
+  it.each([
+    ["web", "World English Bible", "en"],
+    ["kjv", "King James Version", "en"],
+    ["wlc", "Westminster Leningrad Codex", "he"],
+  ])("includes %s translation language", async (id, name, language) => {
+    getTranslation.mockResolvedValue({
+      success: true,
+      data: { ...sampleTranslation, id, name, language },
+    });
+    getChapterVerses.mockResolvedValue({ success: true, data: genesisVerses });
+
+    const res = await chapters.request(`/Genesis/1?translation=${id}`, {}, createRouteEnv());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      translation: { id, name, language },
+    });
+  });
+
   it("returns 400 for unknown book", async () => {
     const res = await chapters.request("/NotABook/1", {}, createRouteEnv());
 

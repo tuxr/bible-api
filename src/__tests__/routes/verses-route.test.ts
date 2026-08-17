@@ -50,7 +50,7 @@ describe("GET /v1/verses/:reference route", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       reference: "John 3:16",
-      translation: { id: "web", name: "World English Bible" },
+      translation: { id: "web", name: "World English Bible", language: "en" },
       verses: [
         {
           book: "JHN",
@@ -80,6 +80,25 @@ describe("GET /v1/verses/:reference route", () => {
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({
       error: "Translation not found: missing",
+    });
+  });
+
+  it.each([
+    ["web", "World English Bible", "en"],
+    ["kjv", "King James Version", "en"],
+    ["wlc", "Westminster Leningrad Codex", "he"],
+  ])("includes %s translation language", async (id, name, language) => {
+    getTranslation.mockResolvedValue({
+      success: true,
+      data: { ...sampleTranslation, id, name, language },
+    });
+    getVerses.mockResolvedValue({ success: true, data: [sampleVerse] });
+
+    const res = await verses.request(`/John%203:16?translation=${id}`, {}, createRouteEnv());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      translation: { id, name, language },
     });
   });
 
@@ -145,7 +164,7 @@ describe("GET /v1/verses/:reference route", () => {
     expect(getVerses).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({
       reference: "John 3:16, Romans 8:28",
-      translation: { id: "web", name: "World English Bible" },
+      translation: { id: "web", name: "World English Bible", language: "en" },
       verses: [
         {
           book: "JHN",
