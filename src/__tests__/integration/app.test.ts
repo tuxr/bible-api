@@ -67,7 +67,7 @@ describe("API integration (SELF.fetch)", () => {
 
       const body = await parseJson<VersesApiResponse>(res);
       expect(body.reference).toBe("John 3:16");
-      expect(body.translation).toEqual({ id: "web", name: "World English Bible" });
+      expect(body.translation).toEqual({ id: "web", name: "World English Bible", language: "en" });
       expect(body.verses).toHaveLength(1);
       expect(body.verses[0]).toMatchObject({
         book: "JHN",
@@ -120,6 +120,7 @@ describe("API integration (SELF.fetch)", () => {
       const body = await parseJson<ChapterApiResponse>(res);
       expect(body.book).toEqual({ id: "GEN", name: "Genesis", testament: "OT" });
       expect(body.chapter).toBe(1);
+      expect(body.translation).toEqual({ id: "web", name: "World English Bible", language: "en" });
       expect(body.verse_count).toBe(3);
       expect(body.verses).toHaveLength(3);
       expect(body.navigation.previous).toBeNull();
@@ -255,7 +256,7 @@ describe("API integration (SELF.fetch)", () => {
       expect(res.status).toBe(200);
 
       const body = await parseJson<VersesApiResponse>(res);
-      expect(body.translation).toEqual({ id: "web", name: "World English Bible" });
+      expect(body.translation).toEqual({ id: "web", name: "World English Bible", language: "en" });
       expect(body.verses).toHaveLength(1);
       expect(body.text).toBeTruthy();
       expect(body.reference).toMatch(/^(Genesis|Exodus|John) \d+:\d+$/);

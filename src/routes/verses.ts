@@ -48,7 +48,11 @@ verses.get("/:reference", async (c) => {
 
     const response: VersesApiResponse = {
       reference: parsed.normalized,
-      translation: { id: translation.id, name: translation.name },
+      translation: {
+        id: translation.id,
+        name: translation.name,
+        language: translation.language,
+      },
       verses: allVerseRows.map((v) => ({
         book: v.book_id,
         book_name: getBookName(v.book_id),
@@ -85,6 +89,7 @@ verses.get("/:reference", async (c) => {
     translation: {
       id: translation.id,
       name: translation.name,
+      language: translation.language,
     },
     verses: verseRows.map((v) => ({
       book: v.book_id,

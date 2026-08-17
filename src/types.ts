@@ -50,6 +50,7 @@ export interface VersesApiResponse {
   translation: {
     id: string;
     name: string;
+    language: string;
   };
   verses: VerseResponse[];
   text: string; // Combined text of all verses
@@ -114,6 +115,7 @@ export interface ChapterApiResponse {
   translation: {
     id: string;
     name: string;
+    language: string;
   };
   verses: Array<{
     verse: number;

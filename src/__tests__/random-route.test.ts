@@ -48,7 +48,7 @@ describe("GET /v1/random route", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       reference: "Genesis 1:1",
-      translation: { id: "web", name: "World English Bible" },
+      translation: { id: "web", name: "World English Bible", language: "en" },
       verses: [
         {
           book: "GEN",

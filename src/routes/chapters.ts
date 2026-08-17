@@ -71,6 +71,7 @@ chapters.get("/:book/:chapter", async (c) => {
     translation: {
       id: translation.id,
       name: translation.name,
+      language: translation.language,
     },
     verses: verseRows.map((v) => ({
       verse: v.verse,

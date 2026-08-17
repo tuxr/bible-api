@@ -24,6 +24,7 @@ describe("WLC integration (SELF.fetch)", () => {
       expect(body.translation).toEqual({
         id: "wlc",
         name: "Westminster Leningrad Codex",
+        language: "he",
       });
       expect(body.text.length).toBeGreaterThan(10);
       expect(body.verses[0]?.book).toBe("GEN");
@@ -50,7 +51,7 @@ describe("WLC integration (SELF.fetch)", () => {
       expect(body).toMatchObject({
         book: { id: "GEN", testament: "OT" },
         chapter: 1,
-        translation: { id: "wlc" },
+        translation: { id: "wlc", language: "he" },
       });
     });
 
