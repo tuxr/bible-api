@@ -47,6 +47,13 @@ const TRANSLATION_META: Record<string, { name: string; language: string; license
     license: "Public Domain (text); CC-BY-SA (lemma/morphology)",
     description: "Hebrew Old Testament text based on the Westminster Leningrad Codex (Masoretic Text)",
   },
+  tcgnt: {
+    name: "Text-Critical Greek New Testament",
+    language: "grc",
+    license: "Public Domain",
+    description:
+      "Robinson–Pierpont Byzantine Textform 2018 (eBible TCGNT). Public domain. New Testament only. Names of the present editors and this title retained for responsibility.",
+  },
 };
 
 function escapeSql(str: string): string {

@@ -128,6 +128,10 @@ async function main() {
       console.error(`    ERROR: WLC should have ~23,000 verses`);
       errors++;
     }
+    if (row.translation_id === "tcgnt" && count < 7900) {
+      console.error("    ERROR: TCGNT should have ~7954 verses");
+      errors++;
+    }
   }
 
   // Check for duplicates
@@ -179,6 +183,22 @@ async function main() {
     errors++;
   }
 
+  const tcgntPresent = translations.some((translation) => translation.id === "tcgnt");
+  if (tcgntPresent) {
+    const tcgntFtsResults = await query(`
+      SELECT COUNT(*) as count
+      FROM verses_fts
+      JOIN verses ON verses.id = verses_fts.rowid
+      WHERE verses.translation_id = 'tcgnt' AND verses_fts MATCH 'κοσμον'
+    `);
+    const tcgntFtsCount = (tcgntFtsResults[0]?.count as number) ?? 0;
+    console.log(`  TCGNT FTS search for 'κοσμον' (folded): ${tcgntFtsCount} results`);
+    if (tcgntFtsCount === 0) {
+      console.error("  ERROR: TCGNT Greek FTS appears empty or broken");
+      errors++;
+    }
+  }
+
   // Check sample verses
   console.log("\nChecking sample verses...");
   const sampleRefs = [
@@ -224,6 +244,24 @@ async function main() {
   } else {
     console.error("  ERROR: WLC Genesis 1:1 not found!");
     errors++;
+  }
+
+  if (tcgntPresent) {
+    const tcgntJohn = await query(`
+      SELECT text FROM verses
+      WHERE translation_id = 'tcgnt' AND book_id = 'JHN' AND chapter = 3 AND verse = 16
+      LIMIT 1
+    `);
+    if (tcgntJohn.length === 0) {
+      console.error("  ERROR: TCGNT John 3:16 not found!");
+      errors++;
+    } else {
+      const text = (tcgntJohn[0]?.text as string) ?? "";
+      if (text.includes("<") || text.includes("wj")) {
+        console.error("  ERROR: TCGNT John 3:16 still contains markup");
+        errors++;
+      }
+    }
   }
 
   // Summary

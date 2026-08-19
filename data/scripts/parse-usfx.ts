@@ -285,6 +285,11 @@ async function main() {
       translationId = "kjv";
     } else if (zipFile.toLowerCase().includes("wlc")) {
       translationId = "wlc";
+    } else if (
+      zipFile.toLowerCase().includes("grctcgnt") ||
+      zipFile.toLowerCase().includes("tcgnt")
+    ) {
+      translationId = "tcgnt";
     } else {
       translationId = basename(zipFile, ".zip").replace(/_usfx$/, "");
     }
@@ -300,6 +305,9 @@ async function main() {
       } else if (translationId === "wlc") {
         result.name = "Westminster Leningrad Codex";
         result.language = "he";
+      } else if (translationId === "tcgnt") {
+        result.name = "Text-Critical Greek New Testament";
+        result.language = "grc";
       }
 
       // Write parsed JSON

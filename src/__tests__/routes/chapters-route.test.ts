@@ -48,6 +48,7 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     ["web", "World English Bible", "en"],
     ["kjv", "King James Version", "en"],
     ["wlc", "Westminster Leningrad Codex", "he"],
+    ["tcgnt", "Text-Critical Greek New Testament", "grc"],
   ])("includes %s translation language", async (id, name, language) => {
     getTranslation.mockResolvedValue({
       success: true,
