@@ -30,6 +30,12 @@ const TRANSLATIONS = [
     url: "https://ebible.org/Scriptures/hboWLC_usfx.zip",
     filename: "hboWLC_usfx.zip",
   },
+  {
+    id: "tcgnt",
+    name: "Text-Critical Greek New Testament",
+    url: "https://ebible.org/Scriptures/grctcgnt_usfx.zip",
+    filename: "grctcgnt_usfx.zip",
+  },
 ];
 
 async function ensureDir(dir: string) {

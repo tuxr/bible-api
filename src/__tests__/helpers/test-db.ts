@@ -90,6 +90,20 @@ export async function seedTestData(db: D1Database): Promise<void> {
     )
     .run();
 
+  await db
+    .prepare(
+      `INSERT INTO translations (id, name, language, license, description)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .bind(
+      "tcgnt",
+      "Text-Critical Greek New Testament",
+      "grc",
+      "Public Domain",
+      "Greek NT test translation"
+    )
+    .run();
+
   const books = [
     ["GEN", "Genesis", "OT", 1, 50, '["Gen","Ge","Gn"]'],
     ["EXO", "Exodus", "OT", 2, 40, '["Exod","Exo","Ex"]'],
@@ -120,6 +134,13 @@ export async function seedTestData(db: D1Database): Promise<void> {
       "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃",
     ],
     ["wlc", "GEN", 1, 2, "וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ"],
+    [
+      "tcgnt",
+      "JHN",
+      3,
+      16,
+      "Οὕτω γὰρ ἠγάπησεν ὁ Θεὸς τὸν κόσμον, ὥστε τὸν υἱὸν αὐτοῦ τὸν μονογενῆ ἔδωκεν",
+    ],
   ] as const;
 
   for (const [translationId, bookId, chapter, verse, text] of verses) {

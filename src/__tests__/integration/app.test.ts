@@ -54,8 +54,8 @@ describe("API integration (SELF.fetch)", () => {
       const body = await parseJson<{ status: string; translations: number; verses: number }>(res);
       expect(body).toEqual({
         status: "ok",
-        translations: 2,
-        verses: 7,
+        translations: 3,
+        verses: 8,
       });
     });
   });
@@ -75,6 +75,9 @@ describe("API integration (SELF.fetch)", () => {
         chapter: 3,
         verse: 16,
       });
+      expect(Object.keys(body.verses[0]!).sort()).toEqual(
+        ["book", "book_name", "chapter", "text", "verse"].sort()
+      );
       expect(body.text).toContain("God so loved");
     });
 
@@ -252,9 +255,16 @@ describe("API integration (SELF.fetch)", () => {
             license: "Public Domain",
             description: "Hebrew OT test translation",
           },
+          {
+            id: "tcgnt",
+            name: "Text-Critical Greek New Testament",
+            language: "grc",
+            license: "Public Domain",
+            description: "Greek NT test translation",
+          },
         ])
       );
-      expect(body).toHaveLength(2);
+      expect(body).toHaveLength(3);
     });
   });
 

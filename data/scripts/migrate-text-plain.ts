@@ -104,8 +104,8 @@ async function main() {
     console.log("text_plain column already exists");
   }
 
-  console.log("Backfilling text_plain for non-WLC translations...");
-  await execute("UPDATE verses SET text_plain = text WHERE translation_id != 'wlc'");
+  console.log("Backfilling text_plain for non-WLC/TCGNT translations...");
+  await execute("UPDATE verses SET text_plain = text WHERE translation_id NOT IN ('wlc', 'tcgnt')");
 
   console.log("Backfilling WLC text_plain (strip diacritics)...");
   const wlcVerses = await query(
