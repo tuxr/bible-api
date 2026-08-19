@@ -264,4 +264,13 @@ describe("GET /v1/verses/:reference route", () => {
     const body = await res.json() as { verses: unknown[] };
     expect(body.verses[0]).not.toHaveProperty("segments");
   });
+
+  it("omits segments for unmarked verses even when opted in", async () => {
+    getVerses.mockResolvedValue({ success: true, data: [sampleVerse] });
+
+    const res = await verses.request("/John%203:16?segments=1", {}, createRouteEnv());
+    const body = await res.json() as { verses: Array<Record<string, unknown>> };
+
+    expect(body.verses[0]).not.toHaveProperty("segments");
+  });
 });

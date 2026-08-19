@@ -40,6 +40,7 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     expect(body.book).toEqual({ id: "GEN", name: "Genesis", testament: "OT" });
     expect(body.chapter).toBe(1);
     expect(body.verse_count).toBe(2);
+    expect(Object.keys(body.verses[0]!)).toEqual(["verse", "text"]);
     expect(body.navigation.previous).toBeNull();
     expect(body.navigation.next).toEqual({ book: "GEN", chapter: 2, testament: "OT" });
   });
@@ -142,5 +143,14 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     expect(body.verses[0]).toHaveProperty("segments");
     const invalid = await chapters.request("/Genesis/1?segments=0", {}, createRouteEnv());
     expect(invalid.status).toBe(400);
+  });
+
+  it("omits segments for unmarked verses even when opted in", async () => {
+    getChapterVerses.mockResolvedValue({ success: true, data: genesisVerses });
+
+    const res = await chapters.request("/Genesis/1?segments=1", {}, createRouteEnv());
+    const body = await res.json() as { verses: Array<Record<string, unknown>> };
+
+    expect(body.verses[0]).not.toHaveProperty("segments");
   });
 });

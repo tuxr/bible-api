@@ -22,4 +22,11 @@ describe("USFX red-letter parsing", () => {
     const parsed = parseUSFXBuffer(Buffer.from('<usfx><book id="GEN"><c id="1"/><v id="1"/>In the beginning.</book></usfx>'), "web");
     expect(parsed.verses[0]).toEqual({ book: "GEN", chapter: 1, verse: 1, text: "In the beginning." });
   });
+
+  it("clears an empty verse at a book boundary without leaking a header into the next book", () => {
+    const parsed = parseUSFXBuffer(Buffer.from('<usfx><book id="MAT"><c id="1"/><v id="1"/></book><book id="1CO">46-1CO-web.sfm World English Bible</book></usfx>'), "web");
+
+    // This matches the legacy parser: no empty MAT verse and no 1CO 0:0 header verse.
+    expect(parsed.verses).toEqual([]);
+  });
 });
