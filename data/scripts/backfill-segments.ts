@@ -33,7 +33,13 @@ async function main() {
     const file = join(parsedDir, `${id}.json`);
     if (!(await exists(file))) { console.log(`Skipping ${id}: parsed JSON not found`); continue; }
     const parsed = JSON.parse(await readFile(file, "utf8")) as { verses: ParsedVerse[] };
-    const stored = await query(`SELECT book_id, chapter, verse, text, segments FROM verses WHERE translation_id = '${id}'`);
+    // Query by book so Wrangler does not have to serialize an entire translation,
+    // including every stored JSON segment, in one response.
+    const bookIds = [...new Set(parsed.verses.map((verse) => verse.book))];
+    const stored: StoredVerse[] = [];
+    for (const bookId of bookIds) {
+      stored.push(...await query(`SELECT book_id, chapter, verse, text, segments FROM verses WHERE translation_id = '${id}' AND book_id = '${bookId}'`));
+    }
     const parsedByKey = new Map(parsed.verses.map((verse) => [key(verse.book, verse.chapter, verse.verse), verse]));
     const mismatches: string[] = [];
     for (const row of stored) {
