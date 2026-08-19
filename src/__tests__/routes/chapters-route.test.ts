@@ -134,4 +134,13 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
       error: "Database query failed",
     });
   });
+
+  it("includes segments for valid opt-in and rejects invalid flags", async () => {
+    getChapterVerses.mockResolvedValue({ success: true, data: [{ ...genesisVerses[0], segments: '[{"text":"Verse 1","speaker":"jesus"}]' }] });
+    const marked = await chapters.request("/Genesis/1?segments=true", {}, createRouteEnv());
+    const body = await marked.json() as { verses: unknown[] };
+    expect(body.verses[0]).toHaveProperty("segments");
+    const invalid = await chapters.request("/Genesis/1?segments=0", {}, createRouteEnv());
+    expect(invalid.status).toBe(400);
+  });
 });

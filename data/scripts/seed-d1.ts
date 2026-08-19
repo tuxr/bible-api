@@ -18,6 +18,7 @@ interface ParsedVerse {
   chapter: number;
   verse: number;
   text: string;
+  segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
 }
 
 interface ParsedTranslation {
@@ -158,7 +159,8 @@ async function main() {
 
     for (const verse of data.verses) {
       const textPlain = toSearchPlainText(translationId, verse.text);
-      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}');`;
+      const segments = verse.segments ? `'${escapeSql(JSON.stringify(verse.segments))}'` : "NULL";
+      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments});`;
       currentBatch.push(stmt);
 
       if (currentBatch.length >= BATCH_SIZE) {

@@ -10,6 +10,7 @@ import { mkdir, readdir, writeFile, access } from "fs/promises";
 import { join, basename } from "path";
 import sax from "sax";
 import { Open } from "unzipper";
+import { parseUSFXBuffer as parseUSFXBufferWithSegments } from "../../src/lib/usfx-parse.js";
 
 const SOURCES_DIR = join(process.cwd(), "data", "sources");
 const PARSED_DIR = join(process.cwd(), "data", "parsed");
@@ -243,7 +244,7 @@ async function extractAndParseZip(zipPath: string, translationId: string): Promi
   // Read the file content
   const buffer = await usfxEntry.buffer();
 
-  return parseUSFXBuffer(buffer, translationId);
+  return parseUSFXBufferWithSegments(buffer, translationId);
 }
 
 async function ensureDir(dir: string) {

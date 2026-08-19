@@ -239,4 +239,29 @@ describe("GET /v1/verses/:reference route", () => {
       error: "Database query failed",
     });
   });
+
+  it("adds segments only for valid opt-in flags, including comma-separated references", async () => {
+    const marked = { ...sampleVerse, segments: '[{"text":"For God so loved the world...","speaker":"jesus"}]' };
+    getVerses.mockResolvedValue({ success: true, data: [marked] });
+    const single = await verses.request("/John%203:16?segments=yes", {}, createRouteEnv());
+    const singleBody = await single.json() as { verses: Array<{ segments: Array<{ text: string }> }> };
+    expect(singleBody.verses[0]!.segments.map((segment) => segment.text).join("")).toBe(marked.text);
+
+    getVersesForMultipleReferences.mockResolvedValue({ success: true, data: [marked] });
+    const multiple = await verses.request("/John%203:16,%20Romans%208:28?segments=1", {}, createRouteEnv());
+    const multipleBody = await multiple.json() as { verses: unknown[] };
+    expect(multipleBody.verses[0]).toHaveProperty("segments");
+
+    getTranslation.mockClear();
+    const invalid = await verses.request("/John%203:16?segments=false", {}, createRouteEnv());
+    expect(invalid.status).toBe(400);
+    expect(getTranslation).not.toHaveBeenCalled();
+  });
+
+  it("omits malformed stored segments", async () => {
+    getVerses.mockResolvedValue({ success: true, data: [{ ...sampleVerse, segments: "not-json" }] });
+    const res = await verses.request("/John%203:16?segments=1", {}, createRouteEnv());
+    const body = await res.json() as { verses: unknown[] };
+    expect(body.verses[0]).not.toHaveProperty("segments");
+  });
 });

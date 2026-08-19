@@ -144,7 +144,7 @@ export async function getVersesForMultipleReferences(
   for (const [refIndex, ref] of refs.entries()) {
     const { whereClause, params: refParams } = buildVerseQueryParts(ref, translationId);
     subqueries.push(`
-      SELECT id, translation_id, book_id, chapter, verse, text, ? AS ref_index
+      SELECT id, translation_id, book_id, chapter, verse, text, segments, ? AS ref_index
       FROM verses
       WHERE ${whereClause.trim()}
     `);

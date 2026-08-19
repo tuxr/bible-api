@@ -34,6 +34,7 @@ export interface VerseRow {
   chapter: number;
   verse: number;
   text: string;
+  segments?: string | null;
 }
 
 // API response types
@@ -43,6 +44,7 @@ export interface VerseResponse {
   chapter: number;
   verse: number;
   text: string;
+  segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
 }
 
 export interface VersesApiResponse {
@@ -120,6 +122,7 @@ export interface ChapterApiResponse {
   verses: Array<{
     verse: number;
     text: string;
+    segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
   }>;
   verse_count: number;
   navigation: ChapterNavigation;
