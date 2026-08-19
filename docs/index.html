@@ -106,6 +106,7 @@
     <a class="try-link" href="https://bible-api.dws-cloud.com/v1/verses/John%203:16" target="_blank">Try it</a>
     <p class="param">Get verses by reference. Supports single verses, ranges, full chapters, and comma-separated references with context inheritance.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
+    <p class="param"><strong>Optional red-letter segments:</strong> <code>segments=1</code> (also <code>true</code> or <code>yes</code>) includes <code>segments: [{ text, speaker }]</code> for verses with words of Jesus. The default response is unchanged; flat <code>text</code> is always available.</p>
   </div>
 
   <h3>Reference Formats</h3>
@@ -128,6 +129,7 @@
     <a class="try-link" href="https://bible-api.dws-cloud.com/v1/chapters/Genesis/1" target="_blank">Try it</a>
     <p class="param">Get a full chapter with navigation hints. Designed for sequential reading apps.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
+    <p class="param"><strong>Optional red-letter segments:</strong> <code>segments=1</code> includes marked verse segments using the same opt-in response shape as <code>/v1/verses</code>.</p>
     <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> with <code>testament</code> field (OT/NT/AP) for client-side boundary handling.</p>
   </div>
 

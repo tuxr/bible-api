@@ -512,6 +512,7 @@ describe("getVersesForMultipleReferences", () => {
     expect(queries).toHaveLength(1);
     expect(queries[0]).toContain("UNION ALL");
     expect(queries[0]).toContain("ref_index");
+    expect(queries[0]).toContain("segments");
     expect(queries[0]).toContain("(chapter = ? AND verse <= ?)");
     expect(queries[0]).toContain("ORDER BY ref_index, chapter, verse");
     expect(bindArgs[0]).toEqual([

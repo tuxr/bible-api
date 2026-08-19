@@ -12,6 +12,7 @@ import { getChapterVerses, getTranslation } from "../lib/db.js";
 import { findBook, getChapterNavigation } from "../lib/books-data.js";
 import { parseDecimalInteger } from "../lib/numbers.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
+import { parseSegmentsFlag, parseStoredSegments } from "../lib/segments.js";
 
 const chapters = new Hono<{ Bindings: Env }>();
 
@@ -19,6 +20,9 @@ chapters.get("/:book/:chapter", async (c) => {
   const bookParam = c.req.param("book");
   const chapterParam = c.req.param("chapter");
   const translationId = (c.req.query("translation") ?? "web").toLowerCase();
+  const segmentsFlag = parseSegmentsFlag(c.req.query("segments"));
+  if (segmentsFlag === "invalid") return badRequest(c, "Invalid segments flag");
+  const includeSegments = segmentsFlag === "on";
 
   // Resolve book (accepts "Genesis", "GEN", "Gen", etc.)
   const book = findBook(bookParam);
@@ -77,6 +81,7 @@ chapters.get("/:book/:chapter", async (c) => {
     verses: verseRows.map((v) => ({
       verse: v.verse,
       text: v.text,
+      ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
     })),
     verse_count: verseRows.length,
     navigation,

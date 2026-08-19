@@ -8,12 +8,16 @@ import type { Env, VersesApiResponse } from "../types.js";
 import { parseReference, parseMultipleReferences } from "../lib/parser.js";
 import { getVerses, getVersesForMultipleReferences, getTranslation, getBookName } from "../lib/db.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
+import { parseSegmentsFlag, parseStoredSegments } from "../lib/segments.js";
 
 const verses = new Hono<{ Bindings: Env }>();
 
 verses.get("/:reference", async (c) => {
   const reference = decodeURIComponent(c.req.param("reference"));
   const translationId = (c.req.query("translation") ?? "web").toLowerCase();
+  const segmentsFlag = parseSegmentsFlag(c.req.query("segments"));
+  if (segmentsFlag === "invalid") return badRequest(c, "Invalid segments flag");
+  const includeSegments = segmentsFlag === "on";
 
   // Verify translation exists (shared by both paths)
   const translationResult = await getTranslation(c.env.DB, translationId);
@@ -59,6 +63,7 @@ verses.get("/:reference", async (c) => {
         chapter: v.chapter,
         verse: v.verse,
         text: v.text,
+        ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
       })),
       text: allVerseRows.map((v) => v.text).join(" "),
     };
@@ -97,6 +102,7 @@ verses.get("/:reference", async (c) => {
       chapter: v.chapter,
       verse: v.verse,
       text: v.text,
+      ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
     })),
     text: verseRows.map((v) => v.text).join(" "),
   };

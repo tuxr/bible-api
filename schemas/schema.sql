@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS verses (
     verse INTEGER NOT NULL,
     text TEXT NOT NULL,
     text_plain TEXT NOT NULL DEFAULT '',
+    segments TEXT,
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
