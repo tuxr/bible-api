@@ -43,7 +43,16 @@ function normalizeBookId(id: string): string | null {
   return BOOK_ID_MAP[id.toUpperCase()] ?? null;
 }
 
-export function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTranslation {
+export interface ParseOptions {
+  /**
+   * Reproduce the parser before the heading and escaped-markup fixes. Used only by
+   * db:backfill:words to prove a stored verse differs from the current source by
+   * those fixes alone (and not by an upstream revision).
+   */
+  legacy?: boolean;
+}
+
+export function parseUSFXBuffer(buffer: Buffer, translationId: string, options: ParseOptions = {}): ParsedTranslation {
   const parser = sax.parser(true, { trim: false });
   const verses: ParsedVerse[] = [];
   let currentBook: string | null = null;
@@ -57,8 +66,8 @@ export function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTr
   let inWj = false;
 
   const append = (raw: string) => {
-    const text = repairEscapedMarkup(raw);
-    if (!inVerse || inNote || inHeading || !text) return;
+    const text = options.legacy ? raw : repairEscapedMarkup(raw);
+    if (!inVerse || inNote || (inHeading && !options.legacy) || !text) return;
     verseText += text;
     const speaker: Speaker = inWj ? "jesus" : "narrator";
     const last = runs[runs.length - 1];

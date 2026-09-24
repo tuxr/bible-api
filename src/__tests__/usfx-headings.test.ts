@@ -48,3 +48,15 @@ describe("escaped markup in eBible WLC", () => {
     expect(repairEscapedMarkup("the LORD's house")).toBe("the LORD's house");
   });
 });
+
+describe("legacy parse mode", () => {
+  it("reproduces the pre-fix output so backfills can tell fixes from upstream revisions", () => {
+    const usfx = Buffer.from(
+      `<usfx><book id="DEU"><c id="6"/><v id="4"/>'l s="H8085"'שְׁמַ֖'seg type="x-large"'ע'seg''/l' יִשְׂרָאֵ֑ל<s style="s">Heading</s></book></usfx>`
+    );
+    expect(parseUSFXBuffer(usfx, "wlc").verses[0]!.text).toBe("שְׁמַ֖ע יִשְׂרָאֵ֑ל");
+    expect(parseUSFXBuffer(usfx, "wlc", { legacy: true }).verses[0]!.text).toBe(
+      `'l s="H8085"'שְׁמַ֖'seg type="x-large"'ע'seg''/l' יִשְׂרָאֵ֑לHeading`
+    );
+  });
+});

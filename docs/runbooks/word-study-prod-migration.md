@@ -26,17 +26,28 @@ Default responses keep their shape. Only the text of the affected verses changes
 The old Worker ignores the new column and table, so migrate and backfill before deploying.
 
 ```bash
-npm run db:migrate:words -- --remote     # add verses.words, create lexicon, scope the FTS update trigger
-npm run db:backfill:words -- --remote
+npm run db:migrate:words -- --remote                          # add verses.words, create lexicon, scope the FTS update trigger
+npm run db:backfill:words -- --remote --dry-run               # report what would change; writes nothing
+npm run db:backfill:words -- --remote --adopt-revision=tcgnt  # see "Source revisions" below
 ```
 
-The migration also recreates the `verses_au` trigger as `AFTER UPDATE OF text_plain`. The FTS index covers only `text_plain`, and the old unscoped trigger would delete and re-insert the index entry of every verse the backfill touches. With the scoped trigger the backfill writes roughly 47,000 rows (31,167 `words` updates, 676 text fixes that also re-index, about 15,000 lexicon rows). That fits within D1's free-plan limit of 100,000 rows written per day. If the limit interrupts it, re-run the next day: it picks up where it stopped.
+Remote backfills call D1's query API directly (`CLOUDFLARE_API_TOKEN` with D1 edit, account and database ids from `wrangler.toml`) in batches under 90 KB. They don't use `wrangler d1 execute --remote --file`, which goes through the import path and makes the database unavailable while each file imports. Behind an HTTPS proxy (Claude Code cloud sessions), add `NODE_USE_ENV_PROXY=1` so Node's `fetch` uses it.
+
+The migration also recreates the `verses_au` trigger as `AFTER UPDATE OF text_plain`. The FTS index covers only `text_plain`, and the old unscoped trigger would delete and re-insert the index entry of every verse the backfill touches.
+
+### Source revisions
+
+eBible revises its texts, and a database seeded earlier holds an older revision. The backfill re-parses the source zips in legacy mode (the parser before the heading and markup fixes). A stored verse is rewritten as a fix only if it equals that legacy output exactly. Otherwise it's a different upstream revision:
+
+- untagged translations (web, kjv) keep their stored text and the backfill reports the count;
+- tagged translations (tcgnt, wlc) abort, because their word tags are aligned to the current source and wouldn't match the served text, unless `--adopt-revision=<id>` allows moving those verses to the current source.
+
+At the September 2026 rollout, production held an older revision in 1,215 `tcgnt` verses (869 punctuation, 296 accents/breathings/capitals, 49 wording), 143 `web` verses and 3 `kjv` verses. `tcgnt` was moved to the current revision so its tags match. `web` and `kjv` were left as they were.
 
 The backfill:
 
-- compares every parsed verse with its stored row. It aborts without writing a translation's rows if a stored text differs by anything other than removed words (headings or markup), or if verse counts differ;
-- updates `text`, `text_plain` (the FTS triggers re-index) and `segments` for the fixed verses, writes `words` where it differs, and upserts changed lexicon rows;
-- writes through `--file` batches (a `words` UPDATE can be several KB) and is idempotent: a second run reports `Total writes: 0`.
+- updates `text`, `text_plain` (the FTS trigger re-indexes) and `segments` for the fixed verses, writes `words` where it differs, and upserts changed lexicon rows;
+- is idempotent: a second run reports `Total writes: 0`. That rollout wrote 47,911 rows, within D1's free-plan limit of 100,000 rows written per day. If a limit interrupts it, re-run: it picks up where it stopped.
 
 Verify:
 
