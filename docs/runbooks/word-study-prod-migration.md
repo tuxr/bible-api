@@ -42,6 +42,8 @@ eBible revises its texts, and a database seeded earlier holds an older revision.
 - untagged translations (web, kjv) keep their stored text and the backfill reports the count;
 - tagged translations (tcgnt, wlc) abort, because their word tags are aligned to the current source and wouldn't match the served text, unless `--adopt-revision=<id>` allows moving those verses to the current source.
 
+The general procedure is [Updating a translation](../../AGENTS.md#updating-a-translation); the plan to detect and review revisions automatically is [`docs/design/source-revisions.md`](../design/source-revisions.md).
+
 At the September 2026 rollout, production held an older revision in 1,215 `tcgnt` verses (869 punctuation, 296 accents/breathings/capitals, 49 wording), 143 `web` verses and 3 `kjv` verses. `tcgnt` was moved to the current revision so its tags match. `web` and `kjv` were left as they were.
 
 The backfill:

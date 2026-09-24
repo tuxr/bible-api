@@ -75,6 +75,22 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 **Upgrading an existing production D1 (WLC rollout):** Migrate the schema/FTS (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
 
+## Updating a translation
+
+Re-seeding never changes an existing verse (`db:seed` is `INSERT OR IGNORE`). Moving a translation to its current upstream source (a new eBible revision, a parser fix, or re-tagging) goes through `db:backfill:words`:
+
+1. **Get the current source.** `data:download` skips files already on disk, so delete `data/sources/<zip>` first (and the matching `data/sources/words/` files after bumping a pinned commit in `download-sources.ts`), then `npm run data:download`.
+2. **Rebuild.** `npm run data:parse`, then `npm run data:tag`. `tcgnt` and `wlc` must always be re-tagged, because their `words` are aligned to the exact text that gets stored. Then `npm run test:run`.
+3. **Dry run against production.** `npm run db:backfill:words -- --remote --dry-run`. Per translation it reports parser fixes (stored text equals the old parser's output), verses on a different upstream revision, and word rows to write. Other-revision verses are left alone in untagged translations and abort tagged ones.
+4. **Adopt** only the translations whose revision the user approved: `npm run db:backfill:words -- --remote --adopt-revision=web` (comma-separate several ids). Then repeat the dry run and expect `Total writes: 0`, and check a changed verse on the live API.
+
+Gotchas:
+
+- The backfill aborts if a translation's verse count changed. Added or removed verses aren't handled yet.
+- Remote runs need `CLOUDFLARE_API_TOKEN` with D1 edit. In Claude Code cloud sessions the environment's credential proxy injects the real token: set `CLOUDFLARE_API_TOKEN` to any placeholder and add `NODE_USE_ENV_PROXY=1`. Never ask for the token in chat. Ask the user before any write to production D1.
+- Don't bulk-write with `wrangler d1 execute --remote --file`: it uses D1's import path, which makes the database unavailable while each file imports. The backfill calls the query API instead.
+- Details and history: [word study runbook](docs/runbooks/word-study-prod-migration.md). Plan for detecting and reviewing revisions automatically: [`docs/design/source-revisions.md`](docs/design/source-revisions.md).
+
 ## Git & Deployment Workflow
 
 **Important:** This repository deploys automatically to Cloudflare on push to `main`.
