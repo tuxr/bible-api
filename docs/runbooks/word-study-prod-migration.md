@@ -49,6 +49,7 @@ At the September 2026 rollout, production held an older revision in 1,215 `tcgnt
 The backfill:
 
 - updates `text`, `text_plain` (the FTS trigger re-indexes) and `segments` for the fixed verses, writes `words` where it differs, and upserts changed lexicon rows;
+- reads every stored verse once per run (about 120,000 rows), dry runs included. D1 bills per row read, so keep production runs to the few you need. On 2026-09-24 repeated runs exhausted the free plan's 5 million rows/day and took the API down until the account moved to Workers Paid;
 - is idempotent: a second run reports `Total writes: 0`. That rollout wrote 47,911 rows, within D1's free-plan limit of 100,000 rows written per day. If a limit interrupts it, re-run: it picks up where it stopped.
 
 Verify:
