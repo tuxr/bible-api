@@ -20,6 +20,11 @@ export interface TranslationRow {
   language: string;
   license: string | null;
   description: string | null;
+  // Source revision the stored verses match (see data/sources.lock.json). Absent before
+  // db:migrate:sources; NULL until a revision is recorded.
+  source_revision?: string | null;
+  source_sha256?: string | null;
+  imported_at?: string | null;
 }
 
 export interface BookRow {
@@ -93,6 +98,8 @@ export interface TranslationApiResponse {
   language: string;
   license: string | null;
   description: string | null;
+  /** eBible revision date (YYYY-MM-DD) the served text matches; null when not recorded. */
+  revision: string | null;
 }
 
 export interface ErrorResponse {

@@ -10,6 +10,7 @@
  *   add --dry-run to report what would be written without writing
  *   add --adopt-revision=tcgnt to also move verses stored from an older upstream revision to
  *   the current source (otherwise a tagged translation aborts, an untagged one is left alone)
+ *   add --translations=tcgnt,wlc to check only those; each reads all its stored verses once
  *
  * Run `npm run db:migrate:sources` first too. Once a translation's stored text matches its
  * source exactly, the backfill records that source's revision on the translations row.
@@ -34,7 +35,16 @@ const dryRun = process.argv.includes("--dry-run");
 const adoptRevision = new Set(
   process.argv.find((arg) => arg.startsWith("--adopt-revision="))?.slice("--adopt-revision=".length).split(",") ?? []
 );
-const ids = ["web", "kjv", "wlc", "tcgnt"];
+const allIds = ["web", "kjv", "wlc", "tcgnt"];
+// --translations=tcgnt,…: only these. D1 bills per row read, and every run reads each
+// selected translation's verses once (about 120,000 rows for all four).
+const ids = process.argv.find((arg) => arg.startsWith("--translations="))?.slice("--translations=".length).split(",") ?? allIds;
+for (const id of [...ids, ...adoptRevision]) {
+  if (!allIds.includes(id)) throw new Error(`Unknown translation '${id}' (expected ${allIds.join(", ")})`);
+}
+for (const id of adoptRevision) {
+  if (!ids.includes(id)) throw new Error(`--adopt-revision=${id} needs ${id} in --translations`);
+}
 
 function escapeSql(value: string): string { return value.replace(/'/g, "''"); }
 function sqlText(value: string | null): string { return value === null ? "NULL" : `'${escapeSql(value)}'`; }
@@ -211,6 +221,11 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
     throw new Error(
       `${id}: ${unexpected.length} stored verses are a different source revision, so their word tags would not match the served text: ${unexpected.slice(0, 20).join(", ")}`
     );
+  }
+  if (textUpdates) {
+    // Rewriting text invalidates a revision recorded for another zip. Clear it first, so a run
+    // that fails partway leaves the row unrecorded rather than claiming the old revision.
+    statements.unshift(`UPDATE translations SET source_revision = NULL, source_sha256 = NULL, imported_at = NULL WHERE id = '${id}' AND source_sha256 != '${source.sha256}';`);
   }
   await execute(id, statements);
   const verb = dryRun ? "to update" : "updated";

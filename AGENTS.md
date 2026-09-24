@@ -55,7 +55,7 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 
 **Data Pipeline** (`data/scripts/`): Downloads USFX XML from ebible.org, parses with SAX streaming parser, and seeds D1 via wrangler. Parsed JSON stored in `data/parsed/` (gitignored).
 
-**Source revisions:** eBible revises texts at unversioned URLs. `data/sources.lock.json` pins each zip by SHA-256 (`data:download` enforces it; `--refresh` moves the lock to eBible's current revisions), each locked zip is archived as a `source-archive` release asset (`data:archive`, run by the Archive sources workflow), and `translations.source_*` records the revision the stored verses match. Never adopt a new revision in production without reviewing it. [Runbook](docs/runbooks/source-revisions.md).
+**Source revisions:** eBible revises texts at unversioned URLs. `data/sources.lock.json` pins each zip by SHA-256 (`data:download` enforces it; `--refresh` moves the lock to eBible's current revisions), each locked zip is archived as a `source-archive` release asset (`data:archive`, run by the Archive sources workflow), and `translations.source_*` records the revision the stored verses match (`/v1/translations` returns it as `revision`, `null` when unrecorded). Never adopt a new revision in production without reviewing it. [Runbook](docs/runbooks/source-revisions.md).
 
 ## Database Schema
 
@@ -83,15 +83,16 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 Re-seeding never changes an existing verse (`db:seed` is `INSERT OR IGNORE`). Moving a translation to its current upstream source (a new eBible revision, a parser fix, or re-tagging) goes through `db:backfill:words`:
 
-1. **Get the current source.** `data:download` skips files already on disk, so delete `data/sources/<zip>` first (and the matching `data/sources/words/` files after bumping a pinned commit in `download-sources.ts`), then `npm run data:download`.
+1. **Get the current source.** `npm run data:download -- --refresh` downloads eBible's current revisions and moves `data/sources.lock.json` to them, printing each change (commit the lock only for a revision you're proposing; pushing it archives the zip). After bumping a pinned word-source commit in `download-sources.ts`, delete the matching `data/sources/words/` files first.
 2. **Rebuild.** `npm run data:parse`, then `npm run data:tag`. `tcgnt` and `wlc` must always be re-tagged, because their `words` are aligned to the exact text that gets stored. Then `npm run test:run`.
-3. **Dry run against production.** `npm run db:backfill:words -- --remote --dry-run`. Per translation it reports parser fixes (stored text equals the old parser's output), verses on a different upstream revision, and word rows to write. Other-revision verses are left alone in untagged translations and abort tagged ones.
-4. **Adopt** only the translations whose revision the user approved: `npm run db:backfill:words -- --remote --adopt-revision=web` (comma-separate several ids). Then repeat the dry run and expect `Total writes: 0`, and check a changed verse on the live API.
+3. **Dry run against production.** `npm run db:backfill:words -- --remote --dry-run --translations=web` (only the translations you're moving; each reads all its verses). Per translation it reports parser fixes (stored text equals the old parser's output), verses on a different upstream revision, word rows to write, and the source revision it would record. Other-revision verses are left alone in untagged translations and abort tagged ones.
+4. **Adopt** only the translations whose revision the user approved: `npm run db:backfill:words -- --remote --translations=web --adopt-revision=web` (comma-separate several ids). Once every stored verse matches the locked zip, the backfill records its revision on the `translations` row (`source_revision`, `source_sha256`, `imported_at`; `/v1/translations` shows it as `revision`). Check a changed verse on the live API and `SELECT id, source_revision FROM translations`. Don't repeat the dry run just to see `Total writes: 0`: that's another full read.
 
 Gotchas:
 
 - **Production reads cost money.** D1 bills per row read. A dry run or backfill reads every verse once (about 120,000 rows), and so does any ad-hoc full-table query against production (`COUNT(*) FROM verses`, a whole-translation `SELECT`). Plan the runs, don't loop them. On 2026-09-24, repeated dry runs pushed the account past the free plan's 5 million rows/day, and every endpoint returned 503 until the account moved to Workers Paid.
 - The backfill aborts if a translation's verse count changed. Added or removed verses aren't handled yet.
+- The backfill refuses to run unless `data/parsed/` was parsed from the zips in `data/sources.lock.json`, and it needs the `translations.source_*` columns (`npm run db:migrate:sources`).
 - Remote runs need `CLOUDFLARE_API_TOKEN` with D1 edit. In Claude Code cloud sessions the environment's credential proxy injects the real token: set `CLOUDFLARE_API_TOKEN` to any placeholder and add `NODE_USE_ENV_PROXY=1`. Never ask for the token in chat. Ask the user before any write to production D1.
 - Don't bulk-write with `wrangler d1 execute --remote --file`: it uses D1's import path, which makes the database unavailable while each file imports. The backfill calls the query API instead.
 - Details and history: [word study runbook](docs/runbooks/word-study-prod-migration.md). Plan for detecting and reviewing revisions automatically: [`docs/design/source-revisions.md`](docs/design/source-revisions.md).

@@ -84,11 +84,14 @@ async function readIfExists(path: string): Promise<Buffer | undefined> {
   }
 }
 
-/** Keep a zip that isn't the locked revision in data/sources/archive/, named by revision. */
+/**
+ * Keep a zip that isn't the locked revision in data/sources/archive/, named by revision
+ * (or "unreadable" for a file that isn't a complete zip, such as an interrupted download).
+ */
 async function keepOtherRevision(buffer: Buffer, file: string): Promise<string> {
-  const info = await zipInfo(buffer);
+  const revision = await zipInfo(buffer).then((info) => info.revision, () => "unreadable");
   await ensureDir(OTHER_REVISIONS_DIR);
-  const path = join(OTHER_REVISIONS_DIR, revisionFileName(file, info.revision, info.sha256));
+  const path = join(OTHER_REVISIONS_DIR, revisionFileName(file, revision, sha256(buffer)));
   await writeFile(path, buffer);
   return path;
 }
@@ -98,15 +101,14 @@ async function ensureLocked(id: string, text: LockedText): Promise<void> {
   const destPath = join(SOURCES_DIR, text.file);
   const onDisk = await readIfExists(destPath);
   if (onDisk) {
-    const info = await zipInfo(onDisk);
-    if (info.sha256 === text.sha256) {
+    if (sha256(onDisk) === text.sha256) {
       console.log(`${id}: ${text.file} is the locked revision (${text.revision})`);
       return;
     }
     // Possibly the only copy of an older revision (the one a database was seeded from): keep it.
-    await keepOtherRevision(onDisk, text.file);
+    const kept = await keepOtherRevision(onDisk, text.file);
     await rm(destPath);
-    console.log(`${id}: ${text.file} on disk is revision ${info.revision} (${info.sha256.slice(0, 8)}), not the locked one; moved to data/sources/archive/`);
+    console.log(`${id}: ${text.file} on disk is not the locked revision; moved to ${kept}`);
   }
 
   const latest = await fetchBuffer(text.url).catch((error: Error) => {

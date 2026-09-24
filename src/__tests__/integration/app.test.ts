@@ -247,6 +247,7 @@ describe("API integration (SELF.fetch)", () => {
             language: "en",
             license: "Public Domain",
             description: "Test translation for integration tests",
+            revision: null,
           },
           {
             id: "wlc",
@@ -254,6 +255,7 @@ describe("API integration (SELF.fetch)", () => {
             language: "he",
             license: "Public Domain",
             description: "Hebrew OT test translation",
+            revision: null,
           },
           {
             id: "tcgnt",
@@ -261,6 +263,7 @@ describe("API integration (SELF.fetch)", () => {
             language: "grc",
             license: "Public Domain",
             description: "Greek NT test translation",
+            revision: "2026-09-24",
           },
         ])
       );
