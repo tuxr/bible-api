@@ -10,6 +10,9 @@
  *   add --dry-run to report what would be written without writing
  *   add --adopt-revision=tcgnt to also move verses stored from an older upstream revision to
  *   the current source (otherwise a tagged translation aborts, an untagged one is left alone)
+ *
+ * Run `npm run db:migrate:sources` first too. Once a translation's stored text matches its
+ * source exactly, the backfill records that source's revision on the translations row.
  */
 
 import { readFile, readdir, writeFile, access } from "fs/promises";
@@ -18,8 +21,10 @@ import { spawn } from "child_process";
 import { toSearchPlainText } from "../../src/lib/hebrew.js";
 import { Open } from "unzipper";
 import { parseUSFXBuffer } from "../../src/lib/usfx-parse.js";
+import { readLock, sha256, type ParsedSource, type SourcesLock } from "./sources-lock.js";
 
 type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[] };
+type ParsedTranslation = { source?: ParsedSource; verses: ParsedVerse[] };
 type StoredVerse = { book_id: string; chapter: number; verse: number; text: string; segments: string | null; words: string | null };
 const parsedDir = join(process.cwd(), "data", "parsed");
 const target = process.argv.includes("--remote") ? "--remote" : "--local";
@@ -135,18 +140,27 @@ const SOURCE_ZIPS: Record<string, string> = {
  * source files. A stored verse is only rewritten when it equals this: then the difference
  * is exactly those fixes, never an upstream revision that happens to look like one.
  */
-async function legacyTexts(id: string): Promise<Map<string, string>> {
-  const zip = await Open.file(join(process.cwd(), "data", "sources", SOURCE_ZIPS[id]!));
+async function legacyTexts(id: string, source: ParsedSource): Promise<Map<string, string>> {
+  const path = join(process.cwd(), "data", "sources", SOURCE_ZIPS[id]!);
+  if (sha256(await readFile(path)) !== source.sha256) {
+    throw new Error(`${id}: ${SOURCE_ZIPS[id]} is not the zip data/parsed/${id}.json was parsed from; run 'npm run data:parse'`);
+  }
+  const zip = await Open.file(path);
   const entry = zip.files.find((file) => file.path.endsWith("_usfx.xml"));
   if (!entry) throw new Error(`${id}: no USFX file in ${SOURCE_ZIPS[id]}`);
   const legacy = parseUSFXBuffer(await entry.buffer(), id, { legacy: true });
   return new Map(legacy.verses.map((verse) => [key(verse.book, verse.chapter, verse.verse), verse.text]));
 }
 
-async function backfillVerses(id: string): Promise<number> {
+async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
   const file = join(parsedDir, `${id}.json`);
   if (!(await exists(file))) { console.log(`Skipping ${id}: parsed JSON not found`); return 0; }
-  const parsed = JSON.parse(await readFile(file, "utf8")) as { verses: ParsedVerse[] };
+  const parsed = JSON.parse(await readFile(file, "utf8")) as ParsedTranslation;
+  const source = parsed.source;
+  // The revision recorded on the row must be one production can be compared with: the lock's.
+  if (!source || source.sha256 !== lock.texts[id]?.sha256) {
+    throw new Error(`${id}: data/parsed/${id}.json is not parsed from the revision in data/sources.lock.json; run 'npm run data:download' and 'npm run data:parse'`);
+  }
 
   // Query by book so Wrangler never serializes a whole translation's words in one response.
   const stored = new Map<string, StoredVerse>();
@@ -158,7 +172,7 @@ async function backfillVerses(id: string): Promise<number> {
     throw new Error(`${id}: verse count parsed=${parsed.verses.length} stored=${stored.size}`);
   }
 
-  const legacy = await legacyTexts(id);
+  const legacy = await legacyTexts(id, source);
   const unexpected: string[] = [];
   const otherRevision: string[] = [];
   const statements: string[] = [];
@@ -203,8 +217,25 @@ async function backfillVerses(id: string): Promise<number> {
   console.log(`${id}: ${textUpdates} verse texts ${verb} (${revisionUpdates} of them to the current source revision), ${wordUpdates} word rows ${verb}`);
   if (otherRevision.length) {
     console.log(`  ${otherRevision.length} verses left unchanged: stored text is a different source revision (e.g. ${otherRevision.slice(0, 5).join(", ")})`);
+    return statements.length;
   }
-  return statements.length;
+  // Every stored verse now matches the source: record its revision (after the verse writes
+  // succeeded, so a failed run never claims a revision it didn't finish adopting).
+  return statements.length + (await recordRevision(id, source));
+}
+
+async function recordRevision(id: string, source: ParsedSource): Promise<number> {
+  const [row] = await query<{ source_revision: string | null; source_sha256: string | null }>(
+    `SELECT source_revision, source_sha256 FROM translations WHERE id = '${id}'`
+  );
+  if (!row) throw new Error(`${id}: no translations row`);
+  if (row.source_sha256 === source.sha256) return 0;
+  await execute(`${id}_source`, [
+    `UPDATE translations SET source_revision = '${source.revision}', source_sha256 = '${source.sha256}', imported_at = '${new Date().toISOString()}' WHERE id = '${id}';`,
+  ]);
+  const from = row.source_sha256 ? `${row.source_revision} (${row.source_sha256.slice(0, 8)})` : "unrecorded";
+  console.log(`  source revision ${dryRun ? "to record" : "recorded"}: ${from} -> ${source.revision} (${source.sha256.slice(0, 8)})`);
+  return 1;
 }
 
 async function backfillLexicons(): Promise<number> {
@@ -227,8 +258,13 @@ async function backfillLexicons(): Promise<number> {
 }
 
 async function main() {
+  const columns = await query<{ name: string }>("PRAGMA table_info(translations)");
+  if (!columns.some((column) => column.name === "source_sha256")) {
+    throw new Error("translations has no source columns; run 'npm run db:migrate:sources' first");
+  }
+  const lock = await readLock();
   let writes = 0;
-  for (const id of ids) writes += await backfillVerses(id);
+  for (const id of ids) writes += await backfillVerses(id, lock);
   writes += await backfillLexicons();
   console.log(`Total writes: ${writes}`);
 }

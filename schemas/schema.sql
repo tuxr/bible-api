@@ -7,7 +7,12 @@ CREATE TABLE IF NOT EXISTS translations (
     name TEXT NOT NULL,
     language TEXT NOT NULL,
     license TEXT,
-    description TEXT
+    description TEXT,
+    -- The source zip the stored verses match exactly (see data/sources.lock.json).
+    -- NULL: seeded before revisions were recorded, or not yet moved to the locked revision.
+    source_revision TEXT,  -- eBible revision date, YYYY-MM-DD
+    source_sha256 TEXT,    -- SHA-256 of the zip
+    imported_at TEXT       -- when the verses were seeded or adopted (ISO 8601)
 );
 
 -- Books table with metadata

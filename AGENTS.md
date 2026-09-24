@@ -21,7 +21,7 @@ npm run test:run               # Run tests once
 npm run test:run -- src/__tests__/parser.test.ts  # Run single test file
 
 # Data Pipeline (run in order for fresh setup)
-npm run data:download          # Download USFX files from ebible.org
+npm run data:download          # Download the USFX revisions pinned in data/sources.lock.json
 npm run data:parse             # Parse USFX XML to JSON
 npm run data:tag               # Tag tcgnt/wlc words + build lexicons (after parse)
 npm run db:schema:local        # Apply schema to local D1
@@ -55,10 +55,12 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 
 **Data Pipeline** (`data/scripts/`): Downloads USFX XML from ebible.org, parses with SAX streaming parser, and seeds D1 via wrangler. Parsed JSON stored in `data/parsed/` (gitignored).
 
+**Source revisions:** eBible revises texts at unversioned URLs. `data/sources.lock.json` pins each zip by SHA-256 (`data:download` enforces it; `--refresh` moves the lock to eBible's current revisions), each locked zip is archived as a `source-archive` release asset (`data:archive`, run by the Archive sources workflow), and `translations.source_*` records the revision the stored verses match. Never adopt a new revision in production without reviewing it. [Runbook](docs/runbooks/source-revisions.md).
+
 ## Database Schema
 
 ```
-translations (id, name, language, license, description)
+translations (id, name, language, license, description, source_revision, source_sha256, imported_at)
 books (id, name, testament, book_order, chapters, aliases)
 verses (id, translation_id, book_id, chapter, verse, text, text_plain, segments, words)
 lexicon (id, language, entry)   -- entry is JSON; id like "G1841", "H7225", "H1254A"

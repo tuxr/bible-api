@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "data:download": "tsx data/scripts/download-sources.ts",
+    "data:archive": "tsx data/scripts/archive-sources.ts",
     "data:parse": "tsx data/scripts/parse-usfx.ts",
     "data:tag": "tsx data/scripts/tag-words.ts",
     "data:validate": "tsx data/scripts/validate.ts",
@@ -21,7 +22,8 @@
     "db:migrate:segments": "tsx data/scripts/migrate-segments.ts",
     "db:backfill:segments": "tsx data/scripts/backfill-segments.ts",
     "db:migrate:words": "tsx data/scripts/migrate-words.ts",
-    "db:backfill:words": "tsx data/scripts/backfill-words.ts"
+    "db:backfill:words": "tsx data/scripts/backfill-words.ts",
+    "db:migrate:sources": "tsx data/scripts/migrate-sources.ts"
   },
   "dependencies": {
     "hono": "^4.12.34"
