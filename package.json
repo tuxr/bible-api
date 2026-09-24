@@ -21,7 +21,7 @@
     "db:backfill:segments": "tsx data/scripts/backfill-segments.ts"
   },
   "dependencies": {
-    "hono": "^4.12.26"
+    "hono": "^4.12.34"
   },
   "overrides": {
     "esbuild": "0.28.1"
