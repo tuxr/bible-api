@@ -71,6 +71,8 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 **WLC search:** Pointed Hebrew display text is stored in `text`; `text_plain` holds unpointed text for FTS5. `src/lib/hebrew.ts` strips diacritics from queries at search time. WLC covers OT books only.
 
+**Query cost:** D1 bills per row read, not per query. A request should read rows in proportion to what it returns: use indexed lookups (`idx_verses_lookup`) and never count or scan the whole `verses` table (~105,000 rows) on a request path. `/v1/health` caches its verse count per isolate for that reason. Cloudflare's D1 query analytics (GraphQL `d1QueriesAdaptiveGroups`) list rows read per query when you need to find a heavy one.
+
 **Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`.
 
 **Upgrading an existing production D1 (WLC rollout):** Migrate the schema/FTS (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
@@ -86,6 +88,7 @@ Re-seeding never changes an existing verse (`db:seed` is `INSERT OR IGNORE`). Mo
 
 Gotchas:
 
+- **Production reads cost money.** D1 bills per row read. A dry run or backfill reads every verse once (about 120,000 rows), and so does any ad-hoc full-table query against production (`COUNT(*) FROM verses`, a whole-translation `SELECT`). Plan the runs, don't loop them. On 2026-09-24, repeated dry runs pushed the account past the free plan's 5 million rows/day, and every endpoint returned 503 until the account moved to Workers Paid.
 - The backfill aborts if a translation's verse count changed. Added or removed verses aren't handled yet.
 - Remote runs need `CLOUDFLARE_API_TOKEN` with D1 edit. In Claude Code cloud sessions the environment's credential proxy injects the real token: set `CLOUDFLARE_API_TOKEN` to any placeholder and add `NODE_USE_ENV_PROXY=1`. Never ask for the token in chat. Ask the user before any write to production D1.
 - Don't bulk-write with `wrangler d1 execute --remote --file`: it uses D1's import path, which makes the database unavailable while each file imports. The backfill calls the query API instead.

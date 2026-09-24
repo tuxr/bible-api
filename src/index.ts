@@ -58,19 +58,28 @@ app.route("/v1/translations", translations);
 app.route("/v1/random", random);
 app.route("/v1/lexicon", lexicon);
 
+// COUNT(*) over verses reads every row (~105k, and D1 bills per row read), while the total
+// only changes when data is seeded. Cache it per isolate so a health check, which is
+// unauthenticated and not rate limited, normally costs a few rows.
+const VERSE_COUNT_TTL_MS = 60 * 60 * 1000;
+let verseCountCache: { count: number; at: number } | undefined;
+
 // Health check endpoint - must never crash
 app.get("/v1/health", async (c) => {
   try {
-    const [translationCount, verseCount] = await Promise.all([
-      c.env.DB.prepare("SELECT COUNT(*) as count FROM translations").first<{ count: number }>(),
-      c.env.DB.prepare("SELECT COUNT(*) as count FROM verses").first<{ count: number }>(),
-    ]);
+    // Always touch the database, so a failing D1 still reports "degraded".
+    const translationCount = await c.env.DB.prepare("SELECT COUNT(*) as count FROM translations").first<{ count: number }>();
+
+    if (!verseCountCache || Date.now() - verseCountCache.at > VERSE_COUNT_TTL_MS) {
+      const verseCount = await c.env.DB.prepare("SELECT COUNT(*) as count FROM verses").first<{ count: number }>();
+      verseCountCache = { count: verseCount?.count ?? 0, at: Date.now() };
+    }
 
     return c.json(
       {
         status: "ok",
         translations: translationCount?.count ?? 0,
-        verses: verseCount?.count ?? 0,
+        verses: verseCountCache.count,
       },
       {
         headers: { "Cache-Control": CACHE_NONE },
