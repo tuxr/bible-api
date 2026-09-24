@@ -19,6 +19,7 @@ interface ParsedVerse {
   verse: number;
   text: string;
   segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
+  words?: unknown[];
 }
 
 interface ParsedTranslation {
@@ -45,7 +46,7 @@ const TRANSLATION_META: Record<string, { name: string; language: string; license
   wlc: {
     name: "Westminster Leningrad Codex",
     language: "he",
-    license: "Public Domain (text); CC-BY-SA (lemma/morphology)",
+    license: "Public Domain (text); CC BY 4.0 (OSHB lemma/morphology)",
     description: "Hebrew Old Testament text based on the Westminster Leningrad Codex (Masoretic Text)",
   },
   tcgnt: {
@@ -85,6 +86,36 @@ async function ensureDir(dir: string) {
     await access(dir);
   } catch {
     await mkdir(dir, { recursive: true });
+  }
+}
+
+/** Load data/parsed/lexicon/*.json (written by data:tag) into the lexicon table. */
+async function seedLexicons(flags: string[]) {
+  const lexiconDir = join(PARSED_DIR, "lexicon");
+  let files: string[];
+  try {
+    files = (await readdir(lexiconDir)).filter((f) => f.endsWith(".json"));
+  } catch {
+    console.log("\nNo lexicons found (run 'npm run data:tag' to build them), skipping...");
+    return;
+  }
+
+  for (const file of files) {
+    const { language, entries } = JSON.parse(await readFile(join(lexiconDir, file), "utf-8")) as {
+      language: string;
+      entries: Array<{ strong: string }>;
+    };
+    console.log(`\nInserting ${entries.length} ${language} lexicon entries...`);
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const sql = entries
+        .slice(i, i + BATCH_SIZE)
+        .map((entry) => `INSERT OR REPLACE INTO lexicon (id, language, entry) VALUES ('${entry.strong}', '${escapeSql(language)}', '${escapeSql(JSON.stringify(entry))}');`)
+        .join("\n");
+      const batchFile = join(PARSED_DIR, `_lexicon_${language}_${i / BATCH_SIZE}.sql`);
+      await writeFile(batchFile, sql);
+      await runWrangler(["d1", "execute", "bible-db", ...flags, `--file=${batchFile}`]);
+    }
   }
 }
 
@@ -160,7 +191,8 @@ async function main() {
     for (const verse of data.verses) {
       const textPlain = toSearchPlainText(translationId, verse.text);
       const segments = verse.segments ? `'${escapeSql(JSON.stringify(verse.segments))}'` : "NULL";
-      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments});`;
+      const words = verse.words?.length ? `'${escapeSql(JSON.stringify(verse.words))}'` : "NULL";
+      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments}, ${words});`;
       currentBatch.push(stmt);
 
       if (currentBatch.length >= BATCH_SIZE) {
@@ -190,6 +222,8 @@ async function main() {
       }
     }
   }
+
+  await seedLexicons(flags);
 
   console.log("\n✓ Database seeding complete!");
   console.log("\nRun 'npm run data:validate' to verify the data.");

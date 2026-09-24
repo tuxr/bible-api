@@ -9,7 +9,7 @@ export default defineConfig({
         test: {
           name: "workers",
           include: ["src/**/*.test.ts"],
-          exclude: ["src/__tests__/versification.test.ts"],
+          exclude: ["src/__tests__/versification.test.ts", "src/__tests__/word-data.test.ts"],
         },
         plugins: [
           cloudflareTest({
@@ -21,7 +21,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "node",
-          include: ["src/__tests__/versification.test.ts"],
+          include: ["src/__tests__/versification.test.ts", "src/__tests__/word-data.test.ts"],
           environment: "node",
           execArgv: ["--experimental-sqlite"],
         },

@@ -12,13 +12,15 @@ const genesisVerses: VerseRow[] = [
   { id: 2, translation_id: "web", book_id: "GEN", chapter: 1, verse: 2, text: "Verse 2" },
 ];
 
-const { getChapterVerses, getTranslation } = vi.hoisted(() => ({
+const { getChapterVerses, getLexiconEntries, getTranslation } = vi.hoisted(() => ({
   getChapterVerses: vi.fn(),
+  getLexiconEntries: vi.fn(),
   getTranslation: vi.fn(),
 }));
 
 vi.mock("../../lib/db.js", () => ({
   getChapterVerses,
+  getLexiconEntries,
   getTranslation,
 }));
 

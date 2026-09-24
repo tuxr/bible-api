@@ -7,12 +7,14 @@
  */
 
 import { Hono } from "hono";
-import type { Env, ChapterApiResponse } from "../types.js";
-import { getChapterVerses, getTranslation } from "../lib/db.js";
+import type { Env, ChapterApiResponse, VerseWord } from "../types.js";
+import { getChapterVerses, getLexiconEntries, getTranslation } from "../lib/db.js";
 import { findBook, getChapterNavigation } from "../lib/books-data.js";
 import { parseDecimalInteger } from "../lib/numbers.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
 import { parseSegmentsFlag, parseStoredSegments } from "../lib/segments.js";
+import { collectLexiconIds, parseStoredWords, toLexiconMap } from "../lib/words.js";
+import { wordAttribution } from "../lib/word-sources.js";
 
 const chapters = new Hono<{ Bindings: Env }>();
 
@@ -23,6 +25,10 @@ chapters.get("/:book/:chapter", async (c) => {
   const segmentsFlag = parseSegmentsFlag(c.req.query("segments"));
   if (segmentsFlag === "invalid") return badRequest(c, "Invalid segments flag");
   const includeSegments = segmentsFlag === "on";
+  // Same opt-in values as segments (1/true/yes).
+  const wordsFlag = parseSegmentsFlag(c.req.query("words"));
+  if (wordsFlag === "invalid") return badRequest(c, "Invalid words flag");
+  const includeWords = wordsFlag === "on";
 
   // Resolve book (accepts "Genesis", "GEN", "Gen", etc.)
   const book = findBook(bookParam);
@@ -53,7 +59,7 @@ chapters.get("/:book/:chapter", async (c) => {
   const translation = translationResult.data;
 
   // Fetch verses for this chapter
-  const versesResult = await getChapterVerses(c.env.DB, book.id, chapter, translationId);
+  const versesResult = await getChapterVerses(c.env.DB, book.id, chapter, translationId, { includeWords });
   if (!versesResult.success) {
     return serviceUnavailable(c, versesResult.error);
   }
@@ -65,6 +71,24 @@ chapters.get("/:book/:chapter", async (c) => {
 
   // Calculate navigation
   const navigation = getChapterNavigation(book, chapter);
+
+  // Word tags (opt-in). Untagged translations get the normal payload, not an error.
+  const wordsByVerse = new Map<number, VerseWord[]>();
+  if (includeWords) {
+    for (const v of verseRows) {
+      const words = parseStoredWords(v.words);
+      if (words) wordsByVerse.set(v.verse, words);
+    }
+  }
+  let lexicon: ChapterApiResponse["lexicon"];
+  if (wordsByVerse.size > 0) {
+    const ids = collectLexiconIds(wordsByVerse.values());
+    const lexiconResult = await getLexiconEntries(c.env.DB, ids);
+    if (!lexiconResult.success) {
+      return serviceUnavailable(c, lexiconResult.error);
+    }
+    lexicon = toLexiconMap(ids, lexiconResult.data);
+  }
 
   const response: ChapterApiResponse = {
     book: {
@@ -82,9 +106,11 @@ chapters.get("/:book/:chapter", async (c) => {
       verse: v.verse,
       text: v.text,
       ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
+      ...(wordsByVerse.has(v.verse) ? { words: wordsByVerse.get(v.verse) } : {}),
     })),
     verse_count: verseRows.length,
     navigation,
+    ...(lexicon ? { lexicon, attribution: wordAttribution(translation.id) } : {}),
   };
 
   return jsonWithCache(c, response, CACHE_IMMUTABLE);

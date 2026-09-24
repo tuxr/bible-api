@@ -30,9 +30,17 @@ CREATE TABLE IF NOT EXISTS verses (
     text TEXT NOT NULL,
     text_plain TEXT NOT NULL DEFAULT '',
     segments TEXT,
+    words TEXT, -- JSON array of per-word tags (lemma, Strong's, morphology, gloss); NULL when untagged
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
+);
+
+-- Lexicon entries referenced by verses.words (id like "G1841" or "H7225")
+CREATE TABLE IF NOT EXISTS lexicon (
+    id TEXT PRIMARY KEY,
+    language TEXT NOT NULL,
+    entry TEXT NOT NULL -- JSON: strong, lemma, language, transliteration, pronunciation, partOfSpeech, gloss, definition, occurrences
 );
 
 -- Performance indexes
@@ -62,8 +70,9 @@ CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
     INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
 END;
 
--- After UPDATE: update verse in FTS index
-CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE ON verses BEGIN
+-- After UPDATE of the indexed column: update verse in FTS index.
+-- Scoped to text_plain so writing other columns (segments, words) doesn't re-index the verse.
+CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE OF text_plain ON verses BEGIN
     INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
     INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
 END;

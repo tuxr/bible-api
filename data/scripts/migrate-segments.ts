@@ -7,6 +7,7 @@ function runWrangler(args: string[]): Promise<string> {
     const proc = spawn("npx", ["wrangler", ...args], { shell: false });
     let stdout = "";
     let stderr = "";
+    proc.stdout.setEncoding("utf8");
     proc.stdout.on("data", (chunk) => { stdout += chunk; });
     proc.stderr.on("data", (chunk) => { stderr += chunk; });
     proc.on("close", (code) => code === 0 ? resolve(stdout) : reject(new Error(stderr || `Wrangler exited with code ${code}`)));

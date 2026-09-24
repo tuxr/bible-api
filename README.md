@@ -81,6 +81,53 @@ Designed for sequential reading apps. Returns a full chapter with `navigation.pr
 
 Navigation includes `testament` (OT/NT/AP) so clients can handle boundaries (e.g., stop at Revelation or continue into Apocrypha).
 
+**Word study (opt-in):** `words=1` tags every word of a tagged translation (`tcgnt` Greek NT, `wlc` Hebrew OT) with its lemma, Strong's number, morphology and an English gloss, and adds the lexicon entries those words point at plus source attribution. Without `words=1` the payload is unchanged; untagged translations (`web`, `kjv`) return the normal payload.
+
+```
+GET /v1/chapters/Luke/9?translation=tcgnt&words=1
+```
+
+```json
+{
+  "verses": [
+    {
+      "verse": 31,
+      "text": "οἳ ὀφθέντες ἐν δόξῃ ἔλεγον τὴν ἔξοδον αὐτοῦ ἣν ἔμελλε πληροῦν ἐν Ἱερουσαλήμ.",
+      "words": [
+        { "surface": "ὀφθέντες", "lemma": "ὁράω", "strong": "G3708", "morph": "V-APP-NPM", "gloss": "having appeared" },
+        { "surface": "ἔξοδον", "lemma": "ἔξοδος", "strong": "G1841", "morph": "N-ASF", "gloss": "going out" }
+      ]
+    }
+  ],
+  "lexicon": {
+    "G1841": {
+      "strong": "G1841", "lemma": "ἔξοδος", "language": "grc", "transliteration": "exodos",
+      "pronunciation": "EX-od-os", "partOfSpeech": "noun, feminine", "gloss": "departure",
+      "definition": "an exit, i.e. (figuratively) death", "occurrences": 3
+    }
+  },
+  "attribution": [
+    { "id": "stepbible-tagnt", "name": "STEPBible TAGNT (Tyndale House, Cambridge)", "license": "CC BY 4.0", "url": "https://github.com/STEPBible/STEPBible-Data" }
+  ]
+}
+```
+
+- `words` has one entry per whitespace-separated word of `text` (punctuation-only tokens excluded), in reading order. `surface` is the word as it appears in `text` without surrounding punctuation.
+- Strong's numbers are lemma-level (every form of εἰμί is `G1510`). Greek morphology uses Robinson codes (`N-ASF`, `V-2AMS-3S`); Hebrew uses OSHB codes as-is (`HC/Td/Ncfsa`).
+- A token that holds several tagged words carries `parts`, with the main word's tags at the top level: Hebrew prefixes and suffixes (`וְהָאָ֗רֶץ` → `וְ` H9002, `הָ` H9009, `אָ֗רֶץ` H776), Hebrew maqaf joins, and Greek words joined by an em dash.
+- Fields that aren't known are omitted. A few words where the text departs from the tagged source have only `surface`.
+- `lexicon` holds only the entries this chapter's words point at.
+
+### Lexicon
+```
+GET /v1/lexicon/G1841
+GET /v1/lexicon?ids=G1841,G3708,H7225
+```
+
+One entry (same shape as the chapter `lexicon` map, plus `attribution`), or 404. The list form returns `{ "entries": { … }, "attribution": [ … ] }` for up to 200 ids; unknown ids are skipped. Ids are `G` or `H` plus the number (`g01841` is accepted); a few Hebrew entries that Strong's merged carry a letter (`H1254A` "to create", `H1254B` "to fatten").
+
+Word data sources: Robinson–Pierpont 2018 Strong's and parsing (public domain), STEPBible TAGNT/TAHOT and TBESG/TBESH lexicons (CC BY 4.0, Tyndale House), Open Scriptures Hebrew Bible morphology (CC BY 4.0), and Strong's dictionaries (public domain). Responses carry the attribution these licenses require.
+
 ### Search
 ```
 GET /v1/search?q=love&translation=web&book=ROM&testament=NT&limit=20
@@ -127,6 +174,7 @@ All endpoints include appropriate `Cache-Control` headers for optimal performanc
 |----------|---------------|----------|
 | `/v1/verses/*` | Immutable content | 30 days |
 | `/v1/chapters/*` | Immutable content | 30 days |
+| `/v1/lexicon*` | Immutable content | 30 days |
 | `/v1/books` | Immutable content | 30 days |
 | `/v1/translations` | Immutable content | 30 days |
 | `/v1/search` | Short cache | 1 hour |
@@ -234,9 +282,10 @@ wrangler d1 create bible-db
 
 # Update wrangler.toml with your new database_id from the output above
 
-# Download and parse Bible data
+# Download and parse Bible data, then tag Greek/Hebrew words
 npm run data:download
 npm run data:parse
+npm run data:tag
 
 # Apply schema and seed your database
 npm run db:schema

@@ -31,11 +31,28 @@ export function cleanText(text: string): string {
   return text.replace(/\s+/g, " ").replace(/\s([.,;:!?])/g, "$1").trim();
 }
 
+/**
+ * eBible's WLC ships a few words with their markup escaped into the text
+ * (Deut 6:4: `'l s="H8085"'שְׁמַ֖'seg type="x-large"'ע'seg''/l'`). Drop the markup, keep the letters.
+ */
+export function repairEscapedMarkup(text: string): string {
+  return text.replace(/'l s="[^"]*"'|'seg type="[^"]*"'|'seg'|'\/l'/g, "");
+}
+
 function normalizeBookId(id: string): string | null {
   return BOOK_ID_MAP[id.toUpperCase()] ?? null;
 }
 
-export function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTranslation {
+export interface ParseOptions {
+  /**
+   * Reproduce the parser before the heading and escaped-markup fixes. Used only by
+   * db:backfill:words to prove a stored verse differs from the current source by
+   * those fixes alone (and not by an upstream revision).
+   */
+  legacy?: boolean;
+}
+
+export function parseUSFXBuffer(buffer: Buffer, translationId: string, options: ParseOptions = {}): ParsedTranslation {
   const parser = sax.parser(true, { trim: false });
   const verses: ParsedVerse[] = [];
   let currentBook: string | null = null;
@@ -45,10 +62,12 @@ export function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTr
   let runs: Array<{ text: string; speaker: Speaker }> = [];
   let inVerse = false;
   let inNote = false;
+  let inHeading = false;
   let inWj = false;
 
-  const append = (text: string) => {
-    if (!inVerse || inNote || !text) return;
+  const append = (raw: string) => {
+    const text = options.legacy ? raw : repairEscapedMarkup(raw);
+    if (!inVerse || inNote || (inHeading && !options.legacy) || !text) return;
     verseText += text;
     const speaker: Speaker = inWj ? "jesus" : "narrator";
     const last = runs[runs.length - 1];
@@ -98,11 +117,14 @@ export function parseUSFXBuffer(buffer: Buffer, translationId: string): ParsedTr
       currentVerse = parseInt(node.attributes.id as string, 10);
       inVerse = true;
     } else if (["f", "x", "fe", "note"].includes(tag)) inNote = true;
+    // Section headings (\s) sit between verses; without this they leak into the previous verse.
+    else if (tag === "s") inHeading = true;
     else if (tag === "wj") inWj = true;
   };
   parser.onclosetag = (tagName) => {
     const tag = tagName.toLowerCase();
     if (["f", "x", "fe", "note"].includes(tag)) inNote = false;
+    else if (tag === "s") inHeading = false;
     else if (tag === "wj") inWj = false;
     else if (["p", "q", "q1", "q2"].includes(tag)) append(" ");
     else if (tag === "book") {
