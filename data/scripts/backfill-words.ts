@@ -13,6 +13,7 @@ import { readFile, readdir, writeFile, access } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
 import { toSearchPlainText } from "../../src/lib/hebrew.js";
+import { repairEscapedMarkup } from "../../src/lib/usfx-parse.js";
 
 type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[] };
 type StoredVerse = { book_id: string; chapter: number; verse: number; text: string; segments: string | null; words: string | null };
@@ -27,6 +28,8 @@ function runWrangler(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn("npx", ["wrangler", ...args], { shell: false });
     let stdout = ""; let stderr = "";
+    // Decode as a stream: a Hebrew/Greek character can straddle two chunks.
+    proc.stdout.setEncoding("utf8");
     proc.stdout.on("data", (chunk) => { stdout += chunk; });
     proc.stderr.on("data", (chunk) => { stderr += chunk; });
     proc.on("close", (code) => code === 0 ? resolve(stdout) : reject(new Error(stderr || `Wrangler exited with code ${code}`)));
@@ -49,7 +52,15 @@ async function execute(label: string, statements: string[]) {
   }
 }
 
-/** The only text change this backfill makes is deleting words (leaked headings), never adding or altering them. */
+/**
+ * The only text changes this backfill makes are the parser fixes: deleting leaked headings
+ * and deleting escaped markup inside WLC words. Anything else means the stored and parsed
+ * texts disagree for some other reason, and nothing is written.
+ */
+function isParserFix(stored: string, parsed: string): boolean {
+  return onlyRemovesWords(repairEscapedMarkup(stored), parsed);
+}
+
 function onlyRemovesWords(stored: string, parsed: string): boolean {
   const storedWords = stored.split(/\s+/);
   let i = 0;
@@ -87,7 +98,7 @@ async function backfillVerses(id: string): Promise<number> {
     const where = `WHERE translation_id = '${id}' AND book_id = '${verse.book}' AND chapter = ${verse.chapter} AND verse = ${verse.verse}`;
 
     if (row.text !== verse.text) {
-      if (!onlyRemovesWords(row.text, verse.text)) { unexpected.push(ref); continue; }
+      if (!isParserFix(row.text, verse.text)) { unexpected.push(ref); continue; }
       const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
       statements.push(`UPDATE verses SET text = ${sqlText(verse.text)}, text_plain = ${sqlText(toSearchPlainText(id, verse.text))}, segments = ${sqlText(segments)} ${where};`);
       textUpdates++;
@@ -99,7 +110,7 @@ async function backfillVerses(id: string): Promise<number> {
     }
   }
   if (unexpected.length) {
-    throw new Error(`${id}: parsed text differs from stored text by more than removed headings: ${unexpected.slice(0, 20).join(", ")}`);
+    throw new Error(`${id}: parsed text differs from stored text by more than the parser fixes: ${unexpected.slice(0, 20).join(", ")}`);
   }
   await execute(id, statements);
   console.log(`${id}: ${textUpdates} verse texts updated, ${wordUpdates} word rows updated`);
