@@ -121,3 +121,19 @@ describe("/v1/lexicon", () => {
     expect((await SELF.fetch("http://localhost/v1/lexicon?ids=G1,nope")).status).toBe(400);
   });
 });
+
+describe("FTS update trigger", () => {
+  const search = async (q: string) =>
+    parseJson<{ total: number }>(await SELF.fetch(`http://localhost/v1/search?q=${q}&translation=web`));
+
+  it("ignores words writes but re-indexes text_plain changes", async () => {
+    await env.DB.prepare("UPDATE verses SET words = '[]' WHERE translation_id = 'web' AND book_id = 'EXO'").run();
+    expect((await search("names")).total).toBe(1);
+
+    await env.DB.prepare(
+      "UPDATE verses SET text = 'Now these are the tribes of Israel.', text_plain = 'Now these are the tribes of Israel.' WHERE translation_id = 'web' AND book_id = 'EXO'"
+    ).run();
+    expect((await search("names")).total).toBe(0);
+    expect((await search("tribes")).total).toBe(1);
+  });
+});

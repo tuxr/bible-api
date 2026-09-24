@@ -26,9 +26,11 @@ Default responses keep their shape. Only the text of the affected verses changes
 The old Worker ignores the new column and table, so migrate and backfill before deploying.
 
 ```bash
-npm run db:migrate:words -- --remote     # ALTER TABLE verses ADD COLUMN words; CREATE TABLE lexicon
+npm run db:migrate:words -- --remote     # add verses.words, create lexicon, scope the FTS update trigger
 npm run db:backfill:words -- --remote
 ```
+
+The migration also recreates the `verses_au` trigger as `AFTER UPDATE OF text_plain`. The FTS index covers only `text_plain`, and the old unscoped trigger would delete and re-insert the index entry of every verse the backfill touches. With the scoped trigger the backfill writes roughly 47,000 rows (31,167 `words` updates, 676 text fixes that also re-index, about 15,000 lexicon rows). That fits within D1's free-plan limit of 100,000 rows written per day. If the limit interrupts it, re-run the next day: it picks up where it stopped.
 
 The backfill:
 

@@ -29,6 +29,9 @@ function runWranglerQuery(query: string): Promise<string> {
     let stdout = "";
     let stderr = "";
 
+    // Decode as a stream: a Hebrew/Greek character can straddle two chunks.
+    proc.stdout.setEncoding("utf8");
+    proc.stderr.setEncoding("utf8");
     proc.stdout.on("data", (data) => {
       stdout += data.toString();
     });

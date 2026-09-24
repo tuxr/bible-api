@@ -57,7 +57,7 @@ const SCHEMA_STATEMENTS = [
   `CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
     INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
   END`,
-  `CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE ON verses BEGIN
+  `CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE OF text_plain ON verses BEGIN
     INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
     INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
   END`,
