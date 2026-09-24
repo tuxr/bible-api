@@ -4,6 +4,7 @@
 
 import type { D1Database } from "@cloudflare/workers-types";
 import { toSearchPlainText } from "../../lib/hebrew.js";
+import { lexiconFixtures, tcgntJohn316Words, wlcGenesis11Words } from "./word-fixtures.js";
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS translations (
@@ -30,9 +31,15 @@ const SCHEMA_STATEMENTS = [
     text TEXT NOT NULL,
     text_plain TEXT NOT NULL DEFAULT '',
     segments TEXT,
+    words TEXT,
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
+  )`,
+  `CREATE TABLE IF NOT EXISTS lexicon (
+    id TEXT PRIMARY KEY,
+    language TEXT NOT NULL,
+    entry TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_verses_lookup ON verses(translation_id, book_id, chapter, verse)`,
   `CREATE INDEX IF NOT EXISTS idx_verses_translation ON verses(translation_id)`,
@@ -156,7 +163,27 @@ export async function seedTestData(db: D1Database): Promise<void> {
   }
 }
 
+async function seedWordData(db: D1Database): Promise<void> {
+  const tagged = [
+    ["tcgnt", "JHN", 3, 16, tcgntJohn316Words],
+    ["wlc", "GEN", 1, 1, wlcGenesis11Words],
+  ] as const;
+  for (const [translationId, bookId, chapter, verse, words] of tagged) {
+    await db
+      .prepare("UPDATE verses SET words = ? WHERE translation_id = ? AND book_id = ? AND chapter = ? AND verse = ?")
+      .bind(JSON.stringify(words), translationId, bookId, chapter, verse)
+      .run();
+  }
+  for (const entry of lexiconFixtures) {
+    await db
+      .prepare("INSERT INTO lexicon (id, language, entry) VALUES (?, ?, ?)")
+      .bind(entry.strong, entry.language, JSON.stringify(entry))
+      .run();
+  }
+}
+
 export async function setupTestDatabase(db: D1Database): Promise<void> {
   await applyTestSchema(db);
   await seedTestData(db);
+  await seedWordData(db);
 }

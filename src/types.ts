@@ -2,6 +2,10 @@
  * TypeScript types for the Bible API
  */
 
+import type { Attribution, LexiconEntry, VerseWord } from "./lib/word-tagging.js";
+
+export type { Attribution, LexiconEntry, VerseWord, WordPart } from "./lib/word-tagging.js";
+
 // Cloudflare Worker environment bindings
 export interface Env {
   DB: D1Database;
@@ -35,6 +39,7 @@ export interface VerseRow {
   verse: number;
   text: string;
   segments?: string | null;
+  words?: string | null;
 }
 
 // API response types
@@ -123,7 +128,16 @@ export interface ChapterApiResponse {
     verse: number;
     text: string;
     segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
+    words?: VerseWord[];
   }>;
   verse_count: number;
   navigation: ChapterNavigation;
+  /** Present with `words=1` when the translation is tagged: entries for this chapter's words only. */
+  lexicon?: Record<string, LexiconEntry>;
+  attribution?: Attribution[];
+}
+
+export interface LexiconApiResponse {
+  entries: Record<string, LexiconEntry>;
+  attribution: Attribution[];
 }

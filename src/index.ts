@@ -17,6 +17,7 @@ import search from "./routes/search.js";
 import books from "./routes/books.js";
 import translations from "./routes/translations.js";
 import random from "./routes/random.js";
+import lexicon from "./routes/lexicon.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -38,6 +39,7 @@ app.get("/", (c) => {
         books: "/v1/books",
         translations: "/v1/translations",
         random: "/v1/random",
+        lexicon: "/v1/lexicon/:id",
         health: "/v1/health",
       },
     },
@@ -54,6 +56,7 @@ app.route("/v1/search", search);
 app.route("/v1/books", books);
 app.route("/v1/translations", translations);
 app.route("/v1/random", random);
+app.route("/v1/lexicon", lexicon);
 
 // Health check endpoint - must never crash
 app.get("/v1/health", async (c) => {

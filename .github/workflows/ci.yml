@@ -21,10 +21,11 @@ jobs:
 
       - run: npm run typecheck
 
-      - name: Seed local D1 for versification anchor tests
+      - name: Seed local D1 for versification and word-tag tests
         run: |
           npm run data:download
           npm run data:parse
+          npm run data:tag
           npm run db:schema:local
           npm run db:seed
 

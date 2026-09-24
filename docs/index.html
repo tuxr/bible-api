@@ -130,7 +130,16 @@
     <p class="param">Get a full chapter with navigation hints. Designed for sequential reading apps.</p>
     <p class="param"><strong>Query:</strong> <code>translation</code> - Translation ID (default: web)</p>
     <p class="param"><strong>Optional red-letter segments:</strong> <code>segments=1</code> includes marked verse segments using the same opt-in response shape as <code>/v1/verses</code>.</p>
+    <p class="param"><strong>Optional word study:</strong> <code>words=1</code> adds <code>words: [{ surface, lemma, strong, morph, gloss }]</code> to each verse of a tagged translation (<code>tcgnt</code>, <code>wlc</code>), one entry per whitespace word in reading order, plus a top-level <code>lexicon</code> map for the entries those words point at and the source <code>attribution</code>. Hebrew words with prefixes or suffixes carry <code>parts</code>. Untagged translations return the normal payload. <a href="https://bible-api.dws-cloud.com/v1/chapters/Luke/9?translation=tcgnt&amp;words=1" target="_blank">Try Luke 9 in Greek</a></p>
     <p class="param"><strong>Response includes:</strong> <code>navigation.previous</code> and <code>navigation.next</code> with <code>testament</code> field (OT/NT/AP) for client-side boundary handling.</p>
+  </div>
+
+  <div class="endpoint">
+    <span class="method">GET</span>
+    <span class="path">/v1/lexicon/:id</span>
+    <a class="try-link" href="https://bible-api.dws-cloud.com/v1/lexicon/G1841" target="_blank">Try it</a>
+    <p class="param">One lexicon entry by Strong's number (<code>G1841</code>, <code>H7225</code>): lemma, transliteration, pronunciation, part of speech, gloss, definition and occurrence count, with attribution. 404 if unknown.</p>
+    <p class="param"><strong>Batch:</strong> <code>/v1/lexicon?ids=G1841,G3708</code> returns <code>{ entries, attribution }</code> for up to 200 ids.</p>
   </div>
 
   <div class="endpoint">

@@ -68,3 +68,42 @@ export function fetchVerse(
     )
     .get(translationId, bookId, chapter, verse) as VerseRow | undefined;
 }
+export interface TaggedVerseRow {
+  book_id: string;
+  chapter: number;
+  verse: number;
+  text: string;
+  words: string | null;
+}
+
+/** True when the local D1 has the words column and tagged rows for this translation. */
+export function hasLocalWords(translationId: string): boolean {
+  const database = getDb();
+  if (!database) return false;
+  const columns = database.prepare("PRAGMA table_info(verses)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "words")) return false;
+  const row = database
+    .prepare("SELECT COUNT(*) as count FROM verses WHERE translation_id = ? AND words IS NOT NULL")
+    .get(translationId) as { count: number } | undefined;
+  return (row?.count ?? 0) > 0;
+}
+
+export function fetchTaggedVerses(translationId: string): TaggedVerseRow[] {
+  const database = getDb();
+  if (!database) return [];
+  return database
+    .prepare(
+      `SELECT v.book_id, v.chapter, v.verse, v.text, v.words
+       FROM verses v JOIN books b ON b.id = v.book_id
+       WHERE v.translation_id = ?
+       ORDER BY b.book_order, v.chapter, v.verse`
+    )
+    .all(translationId) as unknown as TaggedVerseRow[];
+}
+
+export function fetchLexiconEntry(id: string): Record<string, unknown> | undefined {
+  const database = getDb();
+  if (!database) return undefined;
+  const row = database.prepare("SELECT entry FROM lexicon WHERE id = ?").get(id) as { entry: string } | undefined;
+  return row ? (JSON.parse(row.entry) as Record<string, unknown>) : undefined;
+}

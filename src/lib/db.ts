@@ -14,6 +14,12 @@ export type DbResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+/**
+ * Columns every verse query needs. `words` is deliberately left out: it holds ~1KB of JSON
+ * per verse and only the opt-in chapter response reads it.
+ */
+const VERSE_COLUMNS = "id, translation_id, book_id, chapter, verse, text, segments";
+
 type VerseQueryParts = {
   whereClause: string;
   params: (string | number)[];
@@ -105,7 +111,7 @@ export async function getVerses(
 ): Promise<DbResult<VerseRow[]>> {
   const { whereClause, params, orderBy } = buildVerseQueryParts(ref, translationId);
   const query = `
-    SELECT * FROM verses
+    SELECT ${VERSE_COLUMNS} FROM verses
     WHERE ${whereClause.trim()}
     ORDER BY ${orderBy}
   `;
@@ -144,7 +150,7 @@ export async function getVersesForMultipleReferences(
   for (const [refIndex, ref] of refs.entries()) {
     const { whereClause, params: refParams } = buildVerseQueryParts(ref, translationId);
     subqueries.push(`
-      SELECT id, translation_id, book_id, chapter, verse, text, segments, ? AS ref_index
+      SELECT ${VERSE_COLUMNS}, ? AS ref_index
       FROM verses
       WHERE ${whereClause.trim()}
     `);
@@ -364,7 +370,7 @@ export async function getRandomVerse(
 
     // ORDER BY v.id ensures deterministic row order for uniform OFFSET-based selection.
     const result = await db
-      .prepare(`SELECT v.* ${fromWhere} ORDER BY v.id LIMIT 1 OFFSET ?`)
+      .prepare(`SELECT ${VERSE_COLUMNS.split(", ").map((column) => `v.${column}`).join(", ")} ${fromWhere} ORDER BY v.id LIMIT 1 OFFSET ?`)
       .bind(...params, offset)
       .first<VerseRow>();
 
@@ -389,10 +395,11 @@ export async function getChapterVerses(
   db: D1Database,
   bookId: string,
   chapter: number,
-  translationId: string
+  translationId: string,
+  options?: { includeWords?: boolean }
 ): Promise<DbResult<VerseRow[]>> {
   const query = `
-    SELECT * FROM verses
+    SELECT ${VERSE_COLUMNS}${options?.includeWords ? ", words" : ""} FROM verses
     WHERE translation_id = ?
       AND book_id = ?
       AND chapter = ?
@@ -403,6 +410,29 @@ export async function getChapterVerses(
     return { success: true, data: result.results ?? [] };
   } catch (err) {
     console.error("Database error in getChapterVerses:", err);
+    return { success: false, error: "Database query failed" };
+  }
+}
+
+/**
+ * Fetch lexicon entries by id ("G1841"). Ids are passed as one JSON array so a chapter's
+ * few hundred lemmas stay within D1's bound-parameter limit.
+ */
+export async function getLexiconEntries(
+  db: D1Database,
+  ids: string[]
+): Promise<DbResult<Map<string, string>>> {
+  if (ids.length === 0) {
+    return { success: true, data: new Map() };
+  }
+  try {
+    const result = await db
+      .prepare("SELECT id, entry FROM lexicon WHERE id IN (SELECT value FROM json_each(?))")
+      .bind(JSON.stringify(ids))
+      .all<{ id: string; entry: string }>();
+    return { success: true, data: new Map((result.results ?? []).map((row) => [row.id, row.entry])) };
+  } catch (err) {
+    console.error("Database error in getLexiconEntries:", err);
     return { success: false, error: "Database query failed" };
   }
 }

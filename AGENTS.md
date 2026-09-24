@@ -23,6 +23,7 @@ npm run test:run -- src/__tests__/parser.test.ts  # Run single test file
 # Data Pipeline (run in order for fresh setup)
 npm run data:download          # Download USFX files from ebible.org
 npm run data:parse             # Parse USFX XML to JSON
+npm run data:tag               # Tag tcgnt/wlc words + build lexicons (after parse)
 npm run db:schema:local        # Apply schema to local D1
 npm run db:seed                # Seed local database
 npm run data:validate          # Validate seeded data
@@ -59,9 +60,12 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 ```
 translations (id, name, language, license, description)
 books (id, name, testament, book_order, chapters, aliases)
-verses (id, translation_id, book_id, chapter, verse, text, text_plain)
+verses (id, translation_id, book_id, chapter, verse, text, text_plain, segments, words)
+lexicon (id, language, entry)   -- entry is JSON; id like "G1841", "H7225", "H1254A"
 verses_fts (FTS5 virtual table indexing text_plain for search)
 ```
+
+**Word study:** `data/scripts/tag-words.ts` writes `words` (JSON per verse) into `data/parsed/tcgnt.json` and `wlc.json`, and `data/parsed/lexicon/{grc,he}.json`. Greek aligns tcgnt tokens chapter-by-chapter against Robinson–Pierpont 2018 (byztxt) for Strong's/morphology and STEPBible TAGNT for glosses; Hebrew aligns WLC against STEPBible TAHOT. Pure helpers live in `src/lib/word-tagging.ts`; attribution in `src/lib/word-sources.ts`. Verse queries select explicit columns (never `words`) except the opt-in chapter response. Reports of words the sources could not tag: `data/parsed/*-tagging-report.txt`. Existing databases: `npm run db:migrate:words` then `npm run db:backfill:words` ([runbook](docs/runbooks/word-study-prod-migration.md)).
 
 The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebrew OT) are also available.
 

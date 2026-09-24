@@ -30,9 +30,17 @@ CREATE TABLE IF NOT EXISTS verses (
     text TEXT NOT NULL,
     text_plain TEXT NOT NULL DEFAULT '',
     segments TEXT,
+    words TEXT, -- JSON array of per-word tags (lemma, Strong's, morphology, gloss); NULL when untagged
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
+);
+
+-- Lexicon entries referenced by verses.words (id like "G1841" or "H7225")
+CREATE TABLE IF NOT EXISTS lexicon (
+    id TEXT PRIMARY KEY,
+    language TEXT NOT NULL,
+    entry TEXT NOT NULL -- JSON: strong, lemma, language, transliteration, pronunciation, partOfSpeech, gloss, definition, occurrences
 );
 
 -- Performance indexes
