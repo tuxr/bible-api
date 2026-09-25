@@ -66,6 +66,19 @@ Needs a D1-edit `CLOUDFLARE_API_TOKEN`, and `NODE_USE_ENV_PROXY=1` behind an HTT
 
    The two writes are the two `translations` rows. Anything else in the dry run means production has drifted from the lock since 2026-09-24: stop and review it. A `tcgnt` abort ("different source revision") means eBible's 2026-09-24 zip isn't the one adopted that day.
 
-Expected as of September 2026: `tcgnt` and `wlc` record their locked revisions (2026-09-24 and 2026-08-08). `web` and `kjv` stay NULL: production holds an older, unarchived revision (143 and 3 verses differ from the lock). Their locked revisions (2026-09-22 and 2026-09-17) are adopted after review with `--translations=web,kjv --adopt-revision=web,kjv`, which records them.
+4. Move translations still on an older revision to the lock: `npm run db:backfill:words -- --remote --translations=web,kjv --adopt-revision=web,kjv`. Before it, note a Time Travel bookmark (`npx wrangler d1 time-travel info bible-db`): D1 keeps no history, so if the replaced revision isn't archived, the bookmark is the only way back.
+
+Done on 2026-09-25:
+
+- Migration: added the three columns (4 rows read).
+- `--translations=tcgnt,wlc` without the dry run: every verse and word row matched, `Total writes: 2`. Recorded `tcgnt` 2026-09-24 and `wlc` 2026-08-08.
+- `--translations=web,kjv --adopt-revision=web,kjv`: 143 `web` and 3 `kjv` verses updated, `Total writes: 150` (146 verses, 2 revision rows, 2 no-op clears). Recorded `web` 2026-09-22 and `kjv` 2026-09-17.
+- The replaced WEB/KJV text was an older, unarchived eBible revision. Time Travel bookmark from just before the adoption (2026-09-25T01:17Z, restorable for 30 days):
+
+  ```bash
+  npx wrangler d1 time-travel restore bible-db --bookmark=00000c9f-00000008-000050f1-da63b6d091b2137c56b475315a2276ae
+  ```
+
+  Restoring rewinds the whole database, not just those verses.
 
 Rollback: the columns are inert, and `revision` falls back to `null`. To clear them, run `UPDATE translations SET source_revision = NULL, source_sha256 = NULL, imported_at = NULL`.

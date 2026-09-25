@@ -23,7 +23,7 @@ Default responses keep their shape. Only the text of the affected verses changes
 
 ## Migrate and backfill
 
-The old Worker ignores the new column and table, so migrate and backfill before deploying.
+The old Worker ignores the new column and table, so migrate and backfill before merging: merging to `main` deploys the new Worker (Workers Builds).
 
 ```bash
 npm run db:migrate:words -- --remote                          # add verses.words, create lexicon, scope the FTS update trigger
@@ -44,7 +44,7 @@ eBible revises its texts, and a database seeded earlier holds an older revision.
 
 The general procedure is [Updating a translation](../../AGENTS.md#updating-a-translation); the plan to detect and review revisions automatically is [`docs/design/source-revisions.md`](../design/source-revisions.md).
 
-At the September 2026 rollout, production held an older revision in 1,215 `tcgnt` verses (869 punctuation, 296 accents/breathings/capitals, 49 wording), 143 `web` verses and 3 `kjv` verses. `tcgnt` was moved to the current revision so its tags match. `web` and `kjv` were left as they were.
+At the September 2026 rollout, production held an older revision in 1,215 `tcgnt` verses (869 punctuation, 296 accents/breathings/capitals, 49 wording), 143 `web` verses and 3 `kjv` verses. `tcgnt` was moved to the current revision so its tags match. `web` and `kjv` were left as they were, then moved to the current revision on 2026-09-25 ([source revisions runbook](source-revisions.md#production-rollout)).
 
 The backfill:
 
@@ -64,8 +64,9 @@ Expect Luke 9:27 to end at "τοῦ Θεοῦ.", about 5,500 `grc` and 9,400 `he
 
 ## Deploy and smoke test
 
+Merge the PR; Workers Builds deploys `main` within about a minute (`npm run deploy` is only a manual fallback). Then:
+
 ```bash
-npm run deploy
 curl -s 'https://bible-api.dws-cloud.com/v1/chapters/Luke/9?translation=tcgnt' | head -c 300          # no words key
 curl -s 'https://bible-api.dws-cloud.com/v1/chapters/Luke/9?translation=tcgnt&words=1' | head -c 600
 curl -s 'https://bible-api.dws-cloud.com/v1/chapters/Genesis/1?translation=web&words=1' | head -c 300  # normal payload
@@ -75,7 +76,7 @@ curl -s 'https://bible-api.dws-cloud.com/v1/lexicon?ids=G1841,H7225'
 
 ## Rollback
 
-Revert the Worker first. The column and table are inert without it. To remove the data:
+Revert the Worker first (Cloudflare rollback, then revert on `main`; see AGENTS.md "Deployment"). The column and table are inert without it. To remove the data:
 
 ```bash
 npx wrangler d1 execute bible-db --remote --command "UPDATE verses SET words = NULL WHERE words IS NOT NULL"

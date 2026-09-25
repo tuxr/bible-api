@@ -363,6 +363,8 @@ npm run typecheck
 
 ## Deployment
 
+The hosted API at bible-api.dws-cloud.com deploys automatically: merging to `main` triggers a Cloudflare Workers Build. Database changes (schema, seeding, backfills) are always run by hand. The commands below set up a new instance, or deploy manually as a fallback.
+
 ```bash
 # Create production D1 database
 wrangler d1 create bible-db

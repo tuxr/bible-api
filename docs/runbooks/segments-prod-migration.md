@@ -16,7 +16,7 @@ This migration adds an opt-in `segments` field for USFX `<wj>` (words of Jesus) 
 
 ## Migrate and backfill
 
-The old Worker safely ignores the new column. Migrate and backfill before deploying the Worker that exposes the opt-in response.
+The old Worker safely ignores the new column. Migrate and backfill before merging the Worker that exposes the opt-in response: merging to `main` deploys it (Workers Builds).
 
 ```bash
 npm run db:migrate:segments -- --remote
@@ -34,10 +34,9 @@ npx wrangler d1 execute bible-db --remote --command "SELECT segments FROM verses
 
 ## Deploy and smoke test
 
-Deploy only after a successful backfill. If an edge cache is active, purge the affected URLs after deploy.
+Merge the PR only after a successful backfill; Workers Builds deploys `main` within about a minute (`npm run deploy` is only a manual fallback). If an edge cache is active, purge the affected URLs after the deploy.
 
 ```bash
-npm run deploy
 curl -s https://bible-api.dws-cloud.com/v1/verses/John%203:16
 curl -s 'https://bible-api.dws-cloud.com/v1/verses/John%203:16?segments=1'
 curl -s 'https://bible-api.dws-cloud.com/v1/verses/John%203:16,%20John%203:17?segments=1'
@@ -47,7 +46,7 @@ Confirm the default response has no `segments` key, the opt-in response has segm
 
 ## Rollback
 
-Revert the Worker first if necessary, then remove stored values without touching narrator-only rows:
+Revert the Worker first if necessary (Cloudflare rollback, then revert on `main`; see AGENTS.md "Deployment"), then remove stored values without touching narrator-only rows:
 
 ```bash
 npx wrangler d1 execute bible-db --remote --command "UPDATE verses SET segments = NULL WHERE segments IS NOT NULL"

@@ -31,10 +31,10 @@ npm run data:validate          # Validate seeded data
 # Database queries (local)
 npx wrangler d1 execute bible-db --local --command "SELECT COUNT(*) FROM verses"
 
-# Deployment
-npm run db:schema              # Apply schema to production D1
+# Production (see "Deployment" below: merging to main deploys the Worker)
+npm run db:schema              # Apply schema to production D1 (fresh database only)
 npm run db:seed -- --production  # Seed production
-npm run deploy                 # Deploy to Cloudflare
+npm run deploy                 # Manual deploy: fallback or self-hosting only
 ```
 
 ## Architecture
@@ -87,7 +87,7 @@ Re-seeding never changes an existing verse (`db:seed` is `INSERT OR IGNORE`). Mo
 1. **Get the current source.** `npm run data:download -- --refresh` downloads eBible's current revisions and moves `data/sources.lock.json` to them, printing each change (commit the lock only for a revision you're proposing; pushing it archives the zip). After bumping a pinned word-source commit in `download-sources.ts`, delete the matching `data/sources/words/` files first.
 2. **Rebuild.** `npm run data:parse`, then `npm run data:tag`. `tcgnt` and `wlc` must always be re-tagged, because their `words` are aligned to the exact text that gets stored. Then `npm run test:run`.
 3. **Dry run against production.** `npm run db:backfill:words -- --remote --dry-run --translations=web` (only the translations you're moving; each reads all its verses). Per translation it reports parser fixes (stored text equals the old parser's output), verses on a different upstream revision, word rows to write, and the source revision it would record. Other-revision verses are left alone in untagged translations and abort tagged ones.
-4. **Adopt** only the translations whose revision the user approved: `npm run db:backfill:words -- --remote --translations=web --adopt-revision=web` (comma-separate several ids). Once every stored verse matches the locked zip, the backfill records its revision on the `translations` row (`source_revision`, `source_sha256`, `imported_at`; `/v1/translations` shows it as `revision`). Redeploy (re-run the latest deploy) so Workers Caching drops cached chapters and search results, which otherwise live up to 30 days; then check a changed verse on the live API and `SELECT id, source_revision FROM translations`. Don't repeat the dry run just to see `Total writes: 0`: that's another full read.
+4. **Adopt** only the translations whose revision the user approved: `npm run db:backfill:words -- --remote --translations=web --adopt-revision=web` (comma-separate several ids). Once every stored verse matches the locked zip, the backfill records its revision on the `translations` row (`source_revision`, `source_sha256`, `imported_at`; `/v1/translations` shows it as `revision`). Then deploy a new Worker version (retry the latest Workers Builds build, or `npm run deploy` from an up-to-date `main`) so Workers Caching drops cached chapters and search results, which otherwise live up to 30 days: the cache is per version, so rolling back to an existing version doesn't clear it; then check a changed verse on the live API and `SELECT id, source_revision FROM translations`. Don't repeat the dry run just to see `Total writes: 0`: that's another full read.
 
 Gotchas:
 
@@ -101,6 +101,14 @@ Gotchas:
 ## Git & Deployment Workflow
 
 **Important:** This repository deploys automatically to Cloudflare on push to `main`.
+
+### Deployment
+
+- **Merging to `main` is the deploy.** Cloudflare Workers Builds, connected to this GitHub repository, builds and deploys the `bible-api` Worker from each push to `main`, usually within a minute. GitHub Actions never deploy: `CI` runs the typecheck and tests, and `Archive sources` uploads locked source zips.
+- **Check that it landed** on the live API, e.g. a field or endpoint the change adds. Build logs and deployments are in the Cloudflare dashboard under Workers & Pages → `bible-api`.
+- **D1 is never touched by a deploy.** Schema migrations, seeds and backfills run by hand against production (`npm run db:… -- --remote`, which use wrangler or D1's query API) with the user's approval. If the new Worker needs a column or table, migrate *before merging*. If the migration is inert without the new Worker, either order works.
+- **`npm run deploy`** (`wrangler deploy`) is a manual fallback, for example when Workers Builds is down, and the way to deploy a self-hosted copy. It deploys your working tree unreviewed, so prefer merging.
+- **Rolling back:** Cloudflare can restore the previous deployment at once (dashboard → Deployments, or `npx wrangler rollback`). Then revert the change on `main`, or the next merge deploys it again.
 
 ### Rules
 - **Never** work directly on the `main` branch.
