@@ -26,6 +26,7 @@ interface ParsedTranslation {
   id: string;
   name: string;
   language: string;
+  source?: { revision: string; sha256: string };
   verses: ParsedVerse[];
 }
 
@@ -175,8 +176,12 @@ async function main() {
       description: "",
     };
 
-    // Insert translation
-    const translationSql = `INSERT OR REPLACE INTO translations (id, name, language, license, description) VALUES ('${translationId}', '${escapeSql(meta.name)}', '${meta.language}', '${escapeSql(meta.license)}', '${escapeSql(meta.description)}');`;
+    // Insert translation. The source revision is recorded only for a new translation: verses
+    // are INSERT OR IGNORE, so re-seeding leaves an existing translation's text (and revision) as is.
+    const source = data.source
+      ? `'${data.source.revision}', '${data.source.sha256}', '${new Date().toISOString()}'`
+      : "NULL, NULL, NULL";
+    const translationSql = `INSERT INTO translations (id, name, language, license, description, source_revision, source_sha256, imported_at) VALUES ('${translationId}', '${escapeSql(meta.name)}', '${meta.language}', '${escapeSql(meta.license)}', '${escapeSql(meta.description)}', ${source}) ON CONFLICT (id) DO UPDATE SET name = excluded.name, language = excluded.language, license = excluded.license, description = excluded.description;`;
 
     const transFile = join(PARSED_DIR, `_${translationId}_translation.sql`);
     await writeFile(transFile, translationSql);

@@ -22,6 +22,7 @@ translations.get("/", async (c) => {
     language: t.language,
     license: t.license,
     description: t.description,
+    revision: t.source_revision ?? null,
   }));
 
   return jsonWithCache(c, response, CACHE_IMMUTABLE);

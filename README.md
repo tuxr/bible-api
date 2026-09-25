@@ -150,6 +150,8 @@ GET /v1/books?testament=NT
 GET /v1/translations
 ```
 
+Each translation includes `revision`: the eBible revision date (`YYYY-MM-DD`) its text matches, or `null` if not recorded.
+
 ### Random Verse
 ```
 GET /v1/random?translation=web&book=PSA&testament=OT

@@ -1,0 +1,40 @@
+{
+  "texts": {
+    "web": {
+      "file": "engwebp_usfx.zip",
+      "url": "https://ebible.org/Scriptures/engwebp_usfx.zip",
+      "revision": "2026-09-22",
+      "sha256": "c883ea0b8c9bdff4509ec5161f4380f947b94f742c84ffd0e76fa681f38cfa6b",
+      "bytes": 3313975,
+      "usfxSha256": "9403ae97194becb09b05d001f29a81d0b71eab3251ab85c9b20a2103fbf0a4a4",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/engwebp_usfx-2026-09-22-c883ea0b.zip"
+    },
+    "kjv": {
+      "file": "eng-kjv_usfx.zip",
+      "url": "https://ebible.org/Scriptures/eng-kjv_usfx.zip",
+      "revision": "2026-09-17",
+      "sha256": "6d834ebe8bcf157587ce93b774615d9e9554f1201951a072cc379930d49bb6fb",
+      "bytes": 2823272,
+      "usfxSha256": "9a0584ba6d57cc5c1d2449a27b1f428496379c6edb9694bf51f37adc9bc6c62a",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/eng-kjv_usfx-2026-09-17-6d834ebe.zip"
+    },
+    "wlc": {
+      "file": "hboWLC_usfx.zip",
+      "url": "https://ebible.org/Scriptures/hboWLC_usfx.zip",
+      "revision": "2026-08-08",
+      "sha256": "1d35f46afc53855fd759bb0fabb8db0ea4a6164054555b4fac8504454e370fc9",
+      "bytes": 2199455,
+      "usfxSha256": "cb4b589cb8b49fb1e8f7932c1f31f3d3470c5717b7e63107a0f30d714a80de1d",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/hboWLC_usfx-2026-08-08-1d35f46a.zip"
+    },
+    "tcgnt": {
+      "file": "grctcgnt_usfx.zip",
+      "url": "https://ebible.org/Scriptures/grctcgnt_usfx.zip",
+      "revision": "2026-09-24",
+      "sha256": "d0864502e2835d287caacc77f1c751fa834a4f90f91845596895d989040d835c",
+      "bytes": 995535,
+      "usfxSha256": "b12c19c3eff6447d5e172834af7e8375adb45e820f79a889992748bfb47e6e3f",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/grctcgnt_usfx-2026-09-24-d0864502.zip"
+    }
+  }
+}

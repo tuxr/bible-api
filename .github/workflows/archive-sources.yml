@@ -1,0 +1,33 @@
+name: Archive sources
+
+# Keep a copy of every source zip named in data/sources.lock.json, so a locked revision can
+# still be downloaded after eBible replaces it. Runs as soon as a lock change is pushed to any
+# branch: eBible may replace a revision at any time, and only its exact bytes are uploaded.
+on:
+  push:
+    paths: [data/sources.lock.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archive-sources
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run data:archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

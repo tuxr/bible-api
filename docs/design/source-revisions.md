@@ -1,6 +1,6 @@
 # Handling upstream source revisions
 
-Status: proposed (2026-09-24). Discussion copy: [Claude Docs](https://claude.ai/code/artifact/0f67199b-e532-4a33-9183-0b19c5b9c9e3). The procedure that works today is in [Updating a translation](../../AGENTS.md#updating-a-translation) and the [word study runbook](../runbooks/word-study-prod-migration.md).
+Status: accepted (2026-09-24); PR 1 in progress. Discussion copy: [Claude Docs](https://claude.ai/code/artifact/0f67199b-e532-4a33-9183-0b19c5b9c9e3). The procedure that works today is in [Updating a translation](../../AGENTS.md#updating-a-translation) and the [word study runbook](../runbooks/word-study-prod-migration.md).
 
 The API should notice when eBible or a word-tagging source changes, show the change as a verse-level diff, and adopt it deliberately, one translation at a time, with word tags rebuilt to match. Today none of that happens: production drifted from its sources without anyone knowing.
 
@@ -52,11 +52,11 @@ About half of this already exists from the word-study rollout: the exact fix-ver
 | Part | Today | Change |
 | --- | --- | --- |
 | `data:download` | Unversioned eBible URLs; skips files already on disk | Check downloads against the lock file; add `--refresh`; fetch an archived revision by hash |
-| Source archive | None | Keep each adopted zip (1.0–3.3 MB each for the four texts) as a GitHub release asset, or in R2 |
+| Source archive | None | Keep each adopted zip (1.0–3.3 MB each for the four texts) as a GitHub release asset |
 | Diff report | `--dry-run` prints counts only | New `data:diff` script: per-verse diff by category, as markdown for the pull request |
 | Re-tagging | `data:tag` retags any text and writes an untagged-words report | Diff the old and new reports so a revision shows which words lost tags |
 | `db:backfill:words` | Guard, `--adopt-revision`, `--dry-run`; aborts if verse counts differ | Insert added verses and delete removed ones, both with the guard; stamp the adopted revision |
-| `translations` table | No source information | Add `source_revision`, `source_sha256`, `imported_at`; optionally expose `revision` on `/v1/translations` |
+| `translations` table | No source information | Add `source_revision`, `source_sha256`, `imported_at`; expose `revision` on `/v1/translations` |
 | Automation | CI tests only; Workers Builds deploys `main` | Weekly detect workflow that opens the PR; manual adopt workflow with a D1-edit token as a repository secret |
 | Caching | Chapters and verses: 1 day in browsers, 30 days at the edge (`s-maxage`) | Revisions reach clients within a day while no edge Cache Rule is set; if one is, the adopt workflow purges the changed chapters |
 
@@ -68,9 +68,11 @@ Three pull requests. The pending WEB and KJV revisions become the first real run
 
 **PR 1: pin and record**
 
-- [ ] Add `data/sources.lock.json` with today's four zips as the baseline, and make `data:download` verify against it
-- [ ] Archive the baseline zips
-- [ ] Add `source_revision`, `source_sha256`, `imported_at` to `translations` (schema, migration, seed); the backfill stamps them on adoption
+- [x] Add `data/sources.lock.json` with today's four zips as the baseline, and make `data:download` verify against it
+- [x] Archive the baseline zips (`source-archive` release, Archive sources workflow)
+- [x] Add `source_revision`, `source_sha256`, `imported_at` to `translations` (schema, migration, seed); the backfill stamps them on adoption
+- [x] Expose `revision` on `/v1/translations`
+- [ ] Production: migrate, then record `tcgnt` and `wlc` ([runbook](../runbooks/source-revisions.md#production-rollout)). `web` and `kjv` stay unrecorded until their revisions are reviewed
 
 **PR 2: diff and adopt**
 
@@ -84,11 +86,16 @@ Three pull requests. The pending WEB and KJV revisions become the first real run
 - [ ] Weekly workflow: download, hash, and on a change open a pull request with the lock file, archive and report
 - [ ] First run: review and adopt (or skip) WEB's 143 verses and KJV's 3
 
+## Decisions
+
+- **Adoption policy:** review every revision. Nothing is adopted automatically, punctuation-only changes included.
+- **Archive location:** GitHub release assets (the `source-archive` pre-release).
+- **Revision in the API:** `/v1/translations` returns `revision` (the recorded eBible revision date, `null` when unrecorded). Chapter responses are unchanged.
+
+The baseline pins the zips eBible served on 2026-09-24. `tcgnt` and `wlc` in production should match them (the baseline run records them only if every stored verse does). `web` and `kjv` hold an older revision that eBible no longer serves and nobody archived, so their rows stay unrecorded until the pending 143 and 3 verses are reviewed and adopted.
+
 ## Open questions
 
-- **Adoption policy.** Review every revision, or adopt punctuation-only changes automatically and review only wording?
-- **Archive location.** GitHub release assets (free, public, no new binding) or an R2 bucket?
-- **Revision in the API.** Expose `revision` on `/v1/translations`, and on chapter responses, so bible-web can tell when cached tags are stale?
 - **Stale clients.** After an adoption, browsers may show the old text for up to a day (`max-age=86400`). Acceptable, or should adopted chapters change URL (a revision query parameter)?
 - **Adopt credentials.** A D1-edit token stored as a GitHub secret for the adopt workflow, or keep adopting from a Claude session with the proxy-injected token?
 - **Notifications.** Is the pull request enough, or should a detected revision also open an issue or send an email?

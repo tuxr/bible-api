@@ -12,7 +12,10 @@ const SCHEMA_STATEMENTS = [
     name TEXT NOT NULL,
     language TEXT NOT NULL,
     license TEXT,
-    description TEXT
+    description TEXT,
+    source_revision TEXT,
+    source_sha256 TEXT,
+    imported_at TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS books (
     id TEXT PRIMARY KEY,
@@ -110,6 +113,12 @@ export async function seedTestData(db: D1Database): Promise<void> {
       "Public Domain",
       "Greek NT test translation"
     )
+    .run();
+
+  // A recorded source revision (db:backfill:words stamps it); web and wlc stay unrecorded.
+  await db
+    .prepare(`UPDATE translations SET source_revision = ?, source_sha256 = ?, imported_at = ? WHERE id = ?`)
+    .bind("2026-09-24", "d0864502e2835d287caacc77f1c751fa834a4f90f91845596895d989040d835c", "2026-09-25T00:00:00.000Z", "tcgnt")
     .run();
 
   const books = [

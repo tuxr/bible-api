@@ -6,11 +6,12 @@
  */
 
 import { createReadStream } from "fs";
-import { mkdir, readdir, writeFile, access } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile, access } from "fs/promises";
 import { join, basename } from "path";
 import sax from "sax";
 import { Open } from "unzipper";
 import { parseUSFXBuffer as parseUSFXBufferWithSegments } from "../../src/lib/usfx-parse.js";
+import { lockedByFile, readLock, revisionDate, sha256, type ParsedSource } from "./sources-lock.js";
 
 const SOURCES_DIR = join(process.cwd(), "data", "sources");
 const PARSED_DIR = join(process.cwd(), "data", "parsed");
@@ -26,6 +27,8 @@ interface ParsedTranslation {
   id: string;
   name: string;
   language: string;
+  /** The zip this was parsed from; seed and backfill record it on the translation. */
+  source?: ParsedSource;
   verses: Verse[];
 }
 
@@ -271,6 +274,7 @@ async function main() {
   }
 
   const zipFiles = files.filter((f) => f.endsWith(".zip"));
+  const lock = await readLock();
   if (zipFiles.length === 0) {
     console.error("No ZIP files found in data/sources/");
     process.exit(1);
@@ -296,7 +300,14 @@ async function main() {
     }
 
     try {
-      const result = await extractAndParseZip(join(SOURCES_DIR, zipFile), translationId);
+      const zipPath = join(SOURCES_DIR, zipFile);
+      const result = await extractAndParseZip(zipPath, translationId);
+      const zip = await readFile(zipPath);
+      result.source = { file: zipFile, revision: revisionDate(zip), sha256: sha256(zip) };
+      const locked = lockedByFile(lock, zipFile)?.[1];
+      if (locked?.sha256 !== result.source.sha256) {
+        console.warn(`  Warning: ${zipFile} is not the revision in data/sources.lock.json; run 'npm run data:download'`);
+      }
 
       // Set proper names
       if (translationId === "web") {
