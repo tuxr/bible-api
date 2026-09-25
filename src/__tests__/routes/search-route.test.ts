@@ -23,6 +23,7 @@ const { searchVerses, getTranslation, getBookName } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../lib/db.js", () => ({
+  SEARCH_RESULT_WINDOW: 1000,
   searchVerses,
   getTranslation,
   getBookName,
@@ -36,7 +37,7 @@ describe("GET /v1/search route", () => {
     getTranslation.mockResolvedValue({ success: true, data: sampleTranslation });
     searchVerses.mockResolvedValue({
       success: true,
-      data: { results: [sampleResult], total: 1 },
+      data: { results: [sampleResult], total: 1, totalCapped: false },
     });
   });
 
@@ -48,6 +49,7 @@ describe("GET /v1/search route", () => {
       query: "loved",
       translation: "web",
       total: 1,
+      total_capped: false,
       results: [
         {
           book: "JHN",
@@ -165,6 +167,35 @@ describe("GET /v1/search route", () => {
     expect(await res.json()).toEqual({
       error: "Database query failed",
     });
+    expect(searchVerses).not.toHaveBeenCalled();
+  });
+  it("reports a capped total", async () => {
+    searchVerses.mockResolvedValue({
+      success: true,
+      data: { results: [sampleResult], total: 1000, totalCapped: true },
+    });
+
+    const res = await search.request("/?q=the", {}, createRouteEnv());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ total: 1000, total_capped: true });
+  });
+
+  it("pages up to the result window", async () => {
+    const res = await search.request("/?q=loved&offset=980&limit=20", {}, createRouteEnv());
+
+    expect(res.status).toBe(200);
+    expect(searchVerses).toHaveBeenCalledWith(expect.anything(), "loved", "web", expect.objectContaining({ offset: 980, limit: 20 }));
+  });
+
+  it("returns 400 when offset + limit passes the result window", async () => {
+    const res = await search.request("/?q=loved&offset=981&limit=20", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "offset + limit must not exceed 1000",
+    });
+    expect(res.headers.get("Cache-Control")).toBe("no-cache, no-store");
     expect(searchVerses).not.toHaveBeenCalled();
   });
 });

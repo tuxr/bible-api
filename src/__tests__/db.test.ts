@@ -394,7 +394,7 @@ describe("searchVerses pagination (D1)", () => {
 
     expect(result).toEqual({
       success: true,
-      data: { results: [], total: 3 },
+      data: { results: [], total: 3, totalCapped: false },
     });
   });
 });

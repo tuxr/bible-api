@@ -12,7 +12,8 @@ import { env } from "cloudflare:test";
 import app from "../../index.js";
 import { setupTestDatabase } from "../helpers/test-db.js";
 import { createRouteEnv, parseJson } from "../helpers/route-test-helpers.js";
-import type { ChapterApiResponse } from "../../types.js";
+import { SEARCH_RESULT_WINDOW } from "../../lib/db.js";
+import type { ChapterApiResponse, SearchApiResponse } from "../../types.js";
 
 const FILLER_ROWS = 5000;
 // The web app's ceiling for any single request.
@@ -22,15 +23,19 @@ const SLACK = 5;
 
 /** Wrap a D1 binding so every statement adds its `meta.rows_read` to a running total. */
 function meteredDb(db: D1Database) {
-  const meter = { rowsRead: 0 };
-  const wrap = (statement: D1PreparedStatement): D1PreparedStatement =>
+  const meter = { rowsRead: 0, statements: [] as { sql: string; rowsRead: number }[] };
+  const record = (sql: string, rowsRead = 0) => {
+    meter.rowsRead += rowsRead;
+    meter.statements.push({ sql, rowsRead });
+  };
+  const wrap = (statement: D1PreparedStatement, sql: string): D1PreparedStatement =>
     new Proxy(statement, {
       get(target, prop) {
-        if (prop === "bind") return (...values: unknown[]) => wrap(target.bind(...values));
+        if (prop === "bind") return (...values: unknown[]) => wrap(target.bind(...values), sql);
         if (prop === "all" || prop === "run") {
           return async () => {
             const result = await target[prop]();
-            meter.rowsRead += result.meta.rows_read ?? 0;
+            record(sql, result.meta.rows_read);
             return result;
           };
         }
@@ -38,7 +43,7 @@ function meteredDb(db: D1Database) {
           // first() returns no meta: run the statement through all() to meter it.
           return async (column?: string) => {
             const result = await target.all<Record<string, unknown>>();
-            meter.rowsRead += result.meta.rows_read ?? 0;
+            record(sql, result.meta.rows_read);
             const row = result.results[0];
             return row === undefined ? null : column ? row[column] : row;
           };
@@ -48,7 +53,7 @@ function meteredDb(db: D1Database) {
     });
   const metered = new Proxy(db, {
     get(target, prop) {
-      if (prop === "prepare") return (sql: string) => wrap(target.prepare(sql));
+      if (prop === "prepare") return (sql: string) => wrap(target.prepare(sql), sql);
       return Reflect.get(target, prop);
     },
   });
@@ -58,7 +63,7 @@ function meteredDb(db: D1Database) {
 async function measure(path: string) {
   const { db, meter } = meteredDb(env.DB);
   const res = await app.request(path, {}, createRouteEnv({ DB: db }));
-  return { res, rowsRead: meter.rowsRead };
+  return { res, rowsRead: meter.rowsRead, statements: meter.statements };
 }
 
 beforeAll(async () => {
@@ -108,6 +113,38 @@ describe("rows read per request", () => {
     await measure("/v1/health");
     const { res, rowsRead } = await measure("/v1/health");
     expect(res.status).toBe(200);
+    expect(rowsRead).toBeLessThanOrEqual(SLACK);
+  });
+
+  it("GET /v1/search for a rare word reads a few rows per match, never the filler", async () => {
+    const { res, rowsRead } = await measure("/v1/search?q=loved&translation=web");
+    expect(res.status).toBe(200);
+    const body = await parseJson<SearchApiResponse>(res);
+    expect(body.total).toBeGreaterThan(0);
+    // verses_fts covers every translation, so both statements (count and page) read each
+    // match in every translation plus its verse row, and this translation's book rows and sort.
+    const { n: matchesAllTranslations } = (await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM verses_fts WHERE verses_fts MATCH 'loved'"
+    ).first<{ n: number }>())!;
+    expect(rowsRead).toBeLessThanOrEqual(7 * matchesAllTranslations + SLACK);
+  });
+
+  it("GET /v1/search for a common word stops counting at the result window", async () => {
+    const { res, statements } = await measure("/v1/search?q=filler&translation=web");
+    expect(res.status).toBe(200);
+    const body = await parseJson<SearchApiResponse>(res);
+    expect(body).toMatchObject({ total: SEARCH_RESULT_WINDOW, total_capped: true });
+    const count = statements.find((s) => s.sql.includes("COUNT(*)"))!;
+    // Up to 3 rows (match, verse, book) per match passed; the filler alternates web and tcgnt,
+    // so reaching window + 1 web matches passes about twice that many. Uncapped it read 12,500.
+    // The page statement still sorts every match (15,000 rows here) until search gets an index
+    // in canonical order.
+    expect(count.rowsRead).toBeLessThanOrEqual(3 * 2 * (SEARCH_RESULT_WINDOW + 1) + SLACK);
+  });
+
+  it("GET /v1/search past the result window is rejected before searching", async () => {
+    const { res, rowsRead } = await measure("/v1/search?q=filler&translation=web&offset=990&limit=20");
+    expect(res.status).toBe(400);
     expect(rowsRead).toBeLessThanOrEqual(SLACK);
   });
 });

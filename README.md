@@ -133,6 +133,12 @@ Word data sources: Robinson–Pierpont 2018 Strong's and parsing (public domain)
 GET /v1/search?q=love&translation=web&book=ROM&testament=NT&limit=20
 ```
 
+Every word must match. `total` counts matching verses exactly up to 1,000; past that it is `1000` and `total_capped` is `true`. Pages go up to the first 1,000 results: `offset + limit` above 1,000 returns `400`.
+
+```json
+{ "query": "love", "translation": "web", "total": 369, "total_capped": false, "results": [ … ] }
+```
+
 Hebrew search (WLC) uses unpointed (consonantal) text — queries with or without niqqud/cantillation both work:
 ```
 GET /v1/search?q=בראשית&translation=wlc
@@ -183,7 +189,7 @@ All endpoints include appropriate `Cache-Control` headers for optimal performanc
 | `/v1/random` | No cache | - |
 | `/v1/health` | No cache | - |
 
-Bible content is immutable, so aggressive caching is safe. Cloudflare's edge network caches responses globally, reducing database load and improving response times.
+Bible content is immutable, so aggressive caching is safe. [Workers Caching](https://developers.cloudflare.com/workers/cache/) (`[cache]` in `wrangler.toml`) serves repeat requests from Cloudflare's cache for the edge TTL above, without running the Worker or reading D1. Errors are never cached. Each deploy starts with an empty cache, so redeploy after changing data in the database.
 
 ## Error Handling
 
