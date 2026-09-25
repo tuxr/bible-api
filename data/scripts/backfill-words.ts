@@ -39,12 +39,6 @@ const allIds = ["web", "kjv", "wlc", "tcgnt"];
 // --translations=tcgnt,…: only these. D1 bills per row read, and every run reads each
 // selected translation's verses once (about 120,000 rows for all four).
 const ids = process.argv.find((arg) => arg.startsWith("--translations="))?.slice("--translations=".length).split(",") ?? allIds;
-for (const id of [...ids, ...adoptRevision]) {
-  if (!allIds.includes(id)) throw new Error(`Unknown translation '${id}' (expected ${allIds.join(", ")})`);
-}
-for (const id of adoptRevision) {
-  if (!ids.includes(id)) throw new Error(`--adopt-revision=${id} needs ${id} in --translations`);
-}
 
 function escapeSql(value: string): string { return value.replace(/'/g, "''"); }
 function sqlText(value: string | null): string { return value === null ? "NULL" : `'${escapeSql(value)}'`; }
@@ -273,6 +267,12 @@ async function backfillLexicons(): Promise<number> {
 }
 
 async function main() {
+  for (const id of [...ids, ...adoptRevision]) {
+    if (!allIds.includes(id)) throw new Error(`Unknown translation '${id}' (expected ${allIds.join(", ")})`);
+  }
+  for (const id of adoptRevision) {
+    if (!ids.includes(id)) throw new Error(`--adopt-revision=${id} needs ${id} in --translations`);
+  }
   const columns = await query<{ name: string }>("PRAGMA table_info(translations)");
   if (!columns.some((column) => column.name === "source_sha256")) {
     throw new Error("translations has no source columns; run 'npm run db:migrate:sources' first");
