@@ -47,7 +47,7 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 - **Documentation** (`docs/`): Static HTML served via GitHub Pages. Separated from the API to keep forked copies clean.
 - **D1 (SQLite)**: Edge database with FTS5 for full-text search. Schema in `schemas/schema.sql`.
 - **Observability**: Enabled in `wrangler.toml`. Logs and traces available in Cloudflare dashboard under Workers → bible-api → Logs.
-- **FTS5 with external content**: The `verses_fts` virtual table indexes verse text without duplicating storage. Triggers in the schema keep it synchronized.
+- **Search index** (`src/lib/search-index.ts`): `verses_search` is a contentless FTS5 table whose rowid is the verse's canonical position (`search_id·10^8 + book_order·10^6 + chapter·10^3 + verse`), so translation, book and testament filters are rowid ranges and matches come back in order. Triggers keep it synchronized, and guard triggers reject a verse the key can't encode. A new translation needs a number in `SEARCH_IDS` before seeding; never renumber one or change a book's order. The older `verses_fts` (external content, `rowid = verses.id`) is still maintained as the rollback path. Production setup: [runbook](docs/runbooks/search-index-prod-migration.md).
 
 **Reference Parser** (`src/lib/parser.ts`): The most complex component. Parses Bible references like "John 3:16", "Romans 8:28-39", "1 Corinthians 13", abbreviations ("Jn", "Gen"), and URL-encoded input. Returns structured `ParsedReference` objects. Also supports comma-separated references with context inheritance (e.g., "Romans 14:14, 22-23" inherits book and chapter; "Psalm 23, 24" inherits book) via `parseMultipleReferences()`.
 
@@ -60,11 +60,12 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 ## Database Schema
 
 ```
-translations (id, name, language, license, description, source_revision, source_sha256, imported_at)
+translations (id, name, language, license, description, source_revision, source_sha256, imported_at, search_id)
 books (id, name, testament, book_order, chapters, aliases)
 verses (id, translation_id, book_id, chapter, verse, text, text_plain, segments, words)
 lexicon (id, language, entry)   -- entry is JSON; id like "G1841", "H7225", "H1254A"
-verses_fts (FTS5 virtual table indexing text_plain for search)
+verses_search (contentless FTS5 over text_plain, rowid = canonical position; what /v1/search reads)
+verses_fts (FTS5 over text_plain, rowid = verses.id; kept for rollback)
 ```
 
 **Word study:** `data/scripts/tag-words.ts` writes `words` (JSON per verse) into `data/parsed/tcgnt.json` and `wlc.json`, and `data/parsed/lexicon/{grc,he}.json`. Greek aligns tcgnt tokens chapter-by-chapter against Robinson–Pierpont 2018 (byztxt) for Strong's/morphology and STEPBible TAGNT for glosses; Hebrew aligns WLC against STEPBible TAHOT. Pure helpers live in `src/lib/word-tagging.ts`; attribution in `src/lib/word-sources.ts`. Verse queries select explicit columns (never `words`) except the opt-in chapter response. Reports of words the sources could not tag: `data/parsed/*-tagging-report.txt`. Existing databases: `npm run db:migrate:words` then `npm run db:backfill:words` ([runbook](docs/runbooks/word-study-prod-migration.md)).
@@ -73,9 +74,9 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 **WLC search:** Pointed Hebrew display text is stored in `text`; `text_plain` holds unpointed text for FTS5. `src/lib/hebrew.ts` strips diacritics from queries at search time. WLC covers OT books only.
 
-**Query cost:** D1 bills per row read, not per query. A request should read rows in proportion to what it returns: use indexed lookups (`idx_verses_lookup`) and never count or scan the whole `verses` table (~105,000 rows) on a request path. `/v1/health` caches its verse count per isolate for that reason. Search counts at most `SEARCH_RESULT_WINDOW` (1,000) matches and pages no deeper, since D1 bills a row per FTS match counted. Workers Caching (`[cache]` in `wrangler.toml`) serves repeat requests without running the Worker, so a response's `Cache-Control` decides how long it is reused; errors send `no-store`. `src/__tests__/integration/rows-read-budget.test.ts` holds the per-endpoint budgets. Cloudflare's D1 query analytics (GraphQL `d1QueriesAdaptiveGroups`) list rows read per query when you need to find a heavy one.
+**Query cost:** D1 bills per row read, not per query. A request should read rows in proportion to what it returns: use indexed lookups (`idx_verses_lookup`) and never count or scan the whole `verses` table (~105,000 rows) on a request path. `/v1/health` caches its verse count per isolate for that reason. Search counts at most `SEARCH_RESULT_WINDOW` (1,000) matches and pages no deeper, since D1 bills a row per FTS match read; `verses_search` keeps both to the matches in scope. Bind JavaScript numbers carefully near FTS5: D1 binds them as REAL, and FTS5 ignores a rowid bound that isn't an integer (use `CAST(? AS INTEGER)` or integer SQL arithmetic). Workers Caching (`[cache]` in `wrangler.toml`) serves repeat requests without running the Worker, so a response's `Cache-Control` decides how long it is reused; errors send `no-store`. `src/__tests__/integration/rows-read-budget.test.ts` holds the per-endpoint budgets. Cloudflare's D1 query analytics (GraphQL `d1QueriesAdaptiveGroups`) list rows read per query when you need to find a heavy one.
 
-**Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`.
+**Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`. After pulling the keyed search index, run `npm run db:migrate:search-index` (search and `db:seed` need it).
 
 **Upgrading an existing production D1 (WLC rollout):** Migrate the schema/FTS (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
 

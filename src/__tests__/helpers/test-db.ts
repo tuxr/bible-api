@@ -4,6 +4,7 @@
 
 import type { D1Database } from "@cloudflare/workers-types";
 import { toSearchPlainText } from "../../lib/hebrew.js";
+import { SEARCH_IDS, SEARCH_INDEX_DDL } from "../../lib/search-index.js";
 import { lexiconFixtures, tcgntJohn316Words, wlcGenesis11Words } from "./word-fixtures.js";
 
 const SCHEMA_STATEMENTS = [
@@ -15,7 +16,8 @@ const SCHEMA_STATEMENTS = [
     description TEXT,
     source_revision TEXT,
     source_sha256 TEXT,
-    imported_at TEXT
+    imported_at TEXT,
+    search_id INTEGER
   )`,
   `CREATE TABLE IF NOT EXISTS books (
     id TEXT PRIMARY KEY,
@@ -64,6 +66,7 @@ const SCHEMA_STATEMENTS = [
     INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
     INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
   END`,
+  ...SEARCH_INDEX_DDL,
 ];
 
 export async function applyTestSchema(db: D1Database): Promise<void> {
@@ -114,6 +117,10 @@ export async function seedTestData(db: D1Database): Promise<void> {
       "Greek NT test translation"
     )
     .run();
+
+  for (const [id, searchId] of Object.entries(SEARCH_IDS)) {
+    await db.prepare(`UPDATE translations SET search_id = ? WHERE id = ?`).bind(searchId, id).run();
+  }
 
   // A recorded source revision (db:backfill:words stamps it); web and wlc stay unrecorded.
   await db

@@ -116,30 +116,40 @@ describe("rows read per request", () => {
     expect(rowsRead).toBeLessThanOrEqual(SLACK);
   });
 
-  it("GET /v1/search for a rare word reads a few rows per match, never the filler", async () => {
-    const { res, rowsRead } = await measure("/v1/search?q=loved&translation=web");
-    expect(res.status).toBe(200);
-    const body = await parseJson<SearchApiResponse>(res);
-    expect(body.total).toBeGreaterThan(0);
-    // verses_fts covers every translation, so both statements (count and page) read each
-    // match in every translation plus its verse row, and this translation's book rows and sort.
-    const { n: matchesAllTranslations } = (await env.DB.prepare(
-      "SELECT COUNT(*) AS n FROM verses_fts WHERE verses_fts MATCH 'loved'"
-    ).first<{ n: number }>())!;
-    expect(rowsRead).toBeLessThanOrEqual(7 * matchesAllTranslations + SLACK);
-  });
+  describe("GET /v1/search reads the matches in scope, up to the window, and the page", () => {
+    /**
+     * The count reads one FTS row per match in scope (at most window + 1); the page reads the
+     * offset's rows and then each result's FTS row, book and verse. The filler alternates web and
+     * tcgnt, so a query reading another translation's matches, or sorting every match, blows it.
+     */
+    function searchBudget(body: SearchApiResponse, offset: number) {
+      const counted = body.total_capped ? SEARCH_RESULT_WINDOW + 1 : body.total;
+      return counted + offset + 3 * body.results.length + SEARCH_SLACK;
+    }
+    // The translation lookup, and each statement's translation, book and testament bounds.
+    const SEARCH_SLACK = 30;
 
-  it("GET /v1/search for a common word stops counting at the result window", async () => {
-    const { res, statements } = await measure("/v1/search?q=filler&translation=web");
-    expect(res.status).toBe(200);
-    const body = await parseJson<SearchApiResponse>(res);
-    expect(body).toMatchObject({ total: SEARCH_RESULT_WINDOW, total_capped: true });
-    const count = statements.find((s) => s.sql.includes("COUNT(*)"))!;
-    // Up to 3 rows (match, verse, book) per match passed; the filler alternates web and tcgnt,
-    // so reaching window + 1 web matches passes about twice that many. Uncapped it read 12,500.
-    // The page statement still sorts every match (15,000 rows here) until search gets an index
-    // in canonical order.
-    expect(count.rowsRead).toBeLessThanOrEqual(3 * 2 * (SEARCH_RESULT_WINDOW + 1) + SLACK);
+    it.each([
+      ["a rare word", "q=loved&translation=web", 0],
+      ["a common word (capped total)", "q=filler&translation=web", 0],
+      ["the last page of the window", "q=filler&translation=web&offset=980&limit=20", 980],
+      ["book and testament filters", "q=filler&translation=web&book=JHN&testament=NT&limit=100", 0],
+      ["a testament with no matches", "q=filler&translation=web&testament=OT", 0],
+    ])("%s", async (_name, query, offset) => {
+      const { res, rowsRead } = await measure(`/v1/search?${query}`);
+      expect(res.status).toBe(200);
+      const body = await parseJson<SearchApiResponse>(res);
+      expect(rowsRead).toBeLessThanOrEqual(searchBudget(body, offset));
+      expect(rowsRead).toBeLessThanOrEqual(MAX_ROWS_PER_REQUEST);
+    });
+
+    it("caps the total of a common word", async () => {
+      const { res } = await measure("/v1/search?q=filler&translation=web");
+      expect(await parseJson<SearchApiResponse>(res)).toMatchObject({
+        total: SEARCH_RESULT_WINDOW,
+        total_capped: true,
+      });
+    });
   });
 
   it("GET /v1/search past the result window is rejected before searching", async () => {
