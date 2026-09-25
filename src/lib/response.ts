@@ -13,20 +13,22 @@ export const CACHE_SHORT = "public, max-age=300, s-maxage=3600";
 // For dynamic/random content
 export const CACHE_NONE = "no-cache, no-store";
 
+/**
+ * Errors are never cached. Workers Caching (wrangler.toml) stores responses by their
+ * Cache-Control, and without one it would keep some statuses (404s, for 3 minutes) anyway.
+ */
 export function errorResponse(
   c: Context,
   status: ContentfulStatusCode,
   message: string,
   headers?: Record<string, string>
 ) {
-  return headers
-    ? c.json({ error: message }, status, headers)
-    : c.json({ error: message }, status);
+  return c.json({ error: message }, status, { "Cache-Control": CACHE_NONE, ...headers });
 }
 
 export function notFound(c: Context, message = "Not found", hint?: string) {
   if (hint) {
-    return c.json({ error: message, hint }, 404);
+    return c.json({ error: message, hint }, 404, { "Cache-Control": CACHE_NONE });
   }
   return errorResponse(c, 404, message);
 }

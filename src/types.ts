@@ -80,7 +80,10 @@ export interface SearchResult {
 export interface SearchApiResponse {
   query: string;
   translation: string;
+  /** Matching verses, counted exactly up to 1,000 (see total_capped). */
   total: number;
+  /** True when more than `total` verses match; only the first 1,000 can be paged through. */
+  total_capped: boolean;
   results: SearchResult[];
 }
 

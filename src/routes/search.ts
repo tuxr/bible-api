@@ -5,7 +5,7 @@
 
 import { Hono } from "hono";
 import type { Env, SearchApiResponse } from "../types.js";
-import { searchVerses, getTranslation, getBookName } from "../lib/db.js";
+import { searchVerses, getTranslation, getBookName, SEARCH_RESULT_WINDOW } from "../lib/db.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
 import { findBook } from "../lib/books-data.js";
 import { parseDecimalInteger } from "../lib/numbers.js";
@@ -72,6 +72,9 @@ search.get("/", async (c) => {
   }
   const limit = Math.min(Math.max(parsedLimit, 1), 100);
   const offset = parsedOffset;
+  if (offset + limit > SEARCH_RESULT_WINDOW) {
+    return badRequest(c, `offset + limit must not exceed ${SEARCH_RESULT_WINDOW}`);
+  }
 
   // Execute search
   const searchResult = await searchVerses(c.env.DB, query, translationId, {
@@ -85,13 +88,14 @@ search.get("/", async (c) => {
     return serviceUnavailable(c, searchResult.error);
   }
 
-  const { results, total } = searchResult.data;
+  const { results, total, totalCapped } = searchResult.data;
 
   // Build response
   const response: SearchApiResponse = {
     query,
     translation: translationId,
     total,
+    total_capped: totalCapped,
     results: results.map((v) => {
       const bookName = getBookName(v.book_id);
       return {

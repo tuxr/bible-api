@@ -176,9 +176,17 @@ export async function getVersesForMultipleReferences(
 }
 
 /**
+ * Search counts matches exactly up to this many and pages through no further, like
+ * Elasticsearch's 10,000-hit window. D1 bills a row per FTS match counted, so a very common
+ * word ("the" matches ~28,000 WEB verses) would otherwise read every verse containing it.
+ */
+export const SEARCH_RESULT_WINDOW = 1000;
+
+/**
  * Search verses using FTS5
  * Runs the page and count queries independently so the total remains available
- * when pagination produces an empty page.
+ * when pagination produces an empty page. The count stops at SEARCH_RESULT_WINDOW + 1
+ * matches; `totalCapped` reports that more exist than `total` says.
  */
 export async function searchVerses(
   db: D1Database,
@@ -190,7 +198,7 @@ export async function searchVerses(
     limit?: number;
     offset?: number;
   }
-): Promise<DbResult<{ results: VerseRow[]; total: number }>> {
+): Promise<DbResult<{ results: VerseRow[]; total: number; totalCapped: boolean }>> {
   const limit = options?.limit ?? 20;
   const offset = options?.offset ?? 0;
 
@@ -205,7 +213,7 @@ export async function searchVerses(
     .join(" ");
 
   if (ftsQuery.length === 0) {
-    return { success: true, data: { results: [], total: 0 } };
+    return { success: true, data: { results: [], total: 0, totalCapped: false } };
   }
 
   let whereClause = "WHERE v.translation_id = ?";
@@ -223,11 +231,15 @@ export async function searchVerses(
 
   const countQuery = `
     SELECT COUNT(*) as total_count
-    FROM verses v
-    INNER JOIN verses_fts ON v.id = verses_fts.rowid
-    INNER JOIN books b ON v.book_id = b.id
-    ${whereClause}
-    AND verses_fts MATCH ?
+    FROM (
+      SELECT 1
+      FROM verses v
+      INNER JOIN verses_fts ON v.id = verses_fts.rowid
+      INNER JOIN books b ON v.book_id = b.id
+      ${whereClause}
+      AND verses_fts MATCH ?
+      LIMIT ?
+    )
   `;
 
   const searchQuery = `
@@ -243,16 +255,23 @@ export async function searchVerses(
 
   try {
     const [countResult, result] = await Promise.all([
-      db.prepare(countQuery).bind(...params, ftsQuery).first<{ total_count: number }>(),
+      db
+        .prepare(countQuery)
+        .bind(...params, ftsQuery, SEARCH_RESULT_WINDOW + 1)
+        .first<{ total_count: number }>(),
       db.prepare(searchQuery).bind(...params, ftsQuery, limit, offset).all<VerseRow>(),
     ]);
 
-    const total = Number(countResult?.total_count ?? 0);
+    const counted = Number(countResult?.total_count ?? 0);
     const results = result.results ?? [];
 
     return {
       success: true,
-      data: { results, total },
+      data: {
+        results,
+        total: Math.min(counted, SEARCH_RESULT_WINDOW),
+        totalCapped: counted > SEARCH_RESULT_WINDOW,
+      },
     };
   } catch (err) {
     console.error("Database error in searchVerses:", err);

@@ -13,6 +13,18 @@ routes = [
   { pattern = "bible-api.dws-cloud.com", custom_domain = true }
 ]
 
+# Workers Caching: Cloudflare serves a cached copy of each response for as long as its
+# Cache-Control allows (src/lib/response.ts), without running the Worker or touching D1.
+# The cache is per Worker version, so each deploy starts empty. After changing data in
+# production D1 (a translation update), redeploy so cached chapters and search pick it up.
+[cache]
+enabled = true
+
+# CPU time per request (Workers Paid; default 30 s). A guard against runaway code, not D1 cost:
+# time spent waiting on D1 is not CPU time. Enforced only when deployed.
+[limits]
+cpu_ms = 1000
+
 # D1 Database binding
 # IMPORTANT: If you're deploying your own instance, you need to:
 # 1. Create your own D1 database: wrangler d1 create bible-db

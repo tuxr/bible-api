@@ -154,8 +154,9 @@
       <code>book</code> - Filter by book (e.g., ROM) |
       <code>testament</code> - Filter by OT, NT, or AP |
       <code>limit</code> - Results per page (default: 20) |
-      <code>offset</code> - Pagination offset
+      <code>offset</code> - Pagination offset (<code>offset + limit</code> up to 1000)
     </p>
+    <p class="param"><strong>Totals:</strong> <code>total</code> counts matching verses exactly up to 1,000. Past that it is 1000 and <code>total_capped</code> is <code>true</code>.</p>
     <p class="param"><strong>Hebrew (WLC):</strong> Search queries may include or omit niqqud and cantillation marks; they are normalized for matching. <a href="https://bible-api.dws-cloud.com/v1/search?q=%D7%91%D6%B0%D6%BC%D7%A8%D6%B5%D7%90%D7%A9%D6%B4%D7%81%D7%99%D7%AA&amp;translation=wlc" target="_blank">Try a Hebrew search</a></p>
     <p class="param"><strong>Greek (TCGNT):</strong> Search queries may include or omit polytonic marks and final sigma; they are normalized for matching. <a href="https://bible-api.dws-cloud.com/v1/search?q=%CE%BA%CF%8C%CF%83%CE%BC%CE%BF%CE%BD&amp;translation=tcgnt" target="_blank">Try a Greek search</a></p>
   </div>
