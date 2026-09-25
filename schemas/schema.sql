@@ -118,7 +118,7 @@ CREATE TRIGGER IF NOT EXISTS verses_search_ad AFTER DELETE ON verses BEGIN
       + old.chapter * 1000 + old.verse;
 END;
 
--- Scoped like verses_au: writing segments or words doesn't re-index the verse.
+-- Scoped to the key and text_plain: writing segments or words doesn't re-index the verse.
 CREATE TRIGGER IF NOT EXISTS verses_search_au
     AFTER UPDATE OF translation_id, book_id, chapter, verse, text_plain ON verses
 BEGIN

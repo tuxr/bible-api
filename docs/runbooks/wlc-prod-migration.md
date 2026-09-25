@@ -3,6 +3,7 @@
 **Audience:** operator/agent executing the WLC rollout against production Cloudflare D1.
 **Scope:** one-time migration. Adds the `text_plain` column, repoints FTS5 at it, and seeds the Westminster Leningrad Codex (`wlc`) into the live database.
 **Estimated time:** ~10–15 min (mostly the WLC seed).
+**History:** this rollout ran before search moved to `verses_search`. The `verses_fts` queries below no longer work: that table was dropped on 2026-09-25. To check search today, query `verses_search` ([search-index runbook](search-index-prod-migration.md)).
 
 ---
 
