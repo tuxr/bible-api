@@ -2,6 +2,7 @@
 
 **Audience:** operator/agent building the search index in production Cloudflare D1.
 **Scope:** one-time, additive migration. Adds `translations.search_id`, two small indexes, the contentless FTS5 table `verses_search` and its triggers, then indexes every verse. `verses_fts` is left untouched.
+**Status:** done in production on 2026-09-25, and `verses_fts` was dropped the same day ([Retiring `verses_fts`](#retiring-verses_fts)). The script's verification no longer compares the two indexes, so its output no longer has the `matches … in verses_fts` lines shown below.
 **Estimated time:** about 5 minutes, most of it wrangler start-up (one call per statement).
 **Needs the user's go-ahead before Step 2.** Nothing before Step 2 writes to production.
 
@@ -117,7 +118,7 @@ The next day, compare D1 query analytics (GraphQL `d1QueriesAdaptiveGroups`, row
 
 ## Rollback
 
-- **The code:** revert the PR and let `main` redeploy. The previous search uses `verses_fts`, which the migration never touched and which its own triggers keep current.
+- **The code:** no longer a plain revert: the previous search read `verses_fts`, which has been dropped. Rolling back would mean recreating and rebuilding it first (about 105,000 writes).
 - **The schema:** only needed if the new triggers get in the way, for example of a bulk write. The table and triggers can simply be left in place otherwise. Run each statement with `npx wrangler d1 execute bible-db --remote --command "…"`:
 
   ```sql
@@ -140,3 +141,16 @@ The next day, compare D1 query analytics (GraphQL `d1QueriesAdaptiveGroups`, row
 - **Adding a translation:** give it a new number in `SEARCH_IDS` (`src/lib/search-index.ts`) before seeding. `db:seed` sets `search_id`, and the guard trigger rejects verses for a translation without one. Never renumber an existing translation.
 - **Changing a book's order:** the `verses_search_book_order` trigger refuses it, because every key would change. Rebuilding means dropping the table and re-running this runbook.
 - **Dropping `verses_fts`:** after a week or so of clean running, `verses_fts` and its triggers (`verses_ai`, `verses_ad`, `verses_au`) can be dropped. That saves storage and a second index write per verse, but gives up the instant code rollback. It's a separate change and needs its own go-ahead.
+
+## Retiring `verses_fts`
+
+Once `/v1/search` reads `verses_search`, nothing reads `verses_fts`: its triggers only add an index write to every verse write. Drop the triggers first (a trigger that writes to a dropped table breaks every verse write), then the table, one statement per call:
+
+```bash
+for sql in "DROP TRIGGER IF EXISTS verses_ai" "DROP TRIGGER IF EXISTS verses_ad" \
+           "DROP TRIGGER IF EXISTS verses_au" "DROP TABLE IF EXISTS verses_fts"; do
+  npx wrangler d1 execute bible-db --remote --command "$sql"   # --local for a local copy
+done
+```
+
+Done in production on 2026-09-25. A local database built before then still has the table; the same commands with `--local` remove it.

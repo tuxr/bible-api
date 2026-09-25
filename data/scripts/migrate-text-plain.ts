@@ -1,5 +1,7 @@
 /**
- * Migrate existing D1 databases to add text_plain and rebuild the FTS index.
+ * Migrate existing D1 databases to add and backfill text_plain. The verses_search triggers
+ * re-index each verse whose text_plain changes (run db:migrate:search-index afterwards on a
+ * database that doesn't have verses_search yet).
  *
  * Run after pulling schema changes for Hebrew (WLC) search support.
  *
@@ -128,56 +130,24 @@ async function main() {
     console.log(`  Updated ${Math.min(i + BATCH_SIZE, wlcVerses.length)}/${wlcVerses.length}`);
   }
 
-  console.log("Rebuilding FTS index...");
-  await execute("DROP TRIGGER IF EXISTS verses_ai");
-  await execute("DROP TRIGGER IF EXISTS verses_ad");
-  await execute("DROP TRIGGER IF EXISTS verses_au");
-  await execute("DROP TABLE IF EXISTS verses_fts");
-
-  const ftsStatements = [
-    `CREATE VIRTUAL TABLE verses_fts USING fts5(
-      text_plain,
-      content='verses',
-      content_rowid='id'
-    )`,
-    `CREATE TRIGGER verses_ai AFTER INSERT ON verses BEGIN
-      INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-    END`,
-    `CREATE TRIGGER verses_ad AFTER DELETE ON verses BEGIN
-      INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-    END`,
-    `CREATE TRIGGER verses_au AFTER UPDATE OF text_plain ON verses BEGIN
-      INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-      INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-    END`,
-    "INSERT INTO verses_fts(verses_fts) VALUES('rebuild')",
-  ];
-
-  for (const stmt of ftsStatements) {
-    await execute(stmt);
-  }
-
-  // Verify Hebrew FTS only when WLC has been seeded. On production the
-  // migration usually runs before WLC is loaded, in which case an empty
-  // result is expected, not a failure.
+  // Verify Hebrew only when WLC has been seeded. On production the migration usually runs
+  // before WLC is loaded, in which case there is nothing to check.
   const wlcCount = await query(
     "SELECT COUNT(*) as count FROM verses WHERE translation_id = 'wlc'"
   );
   const wlcVerseCount = (wlcCount[0]?.count as number) ?? 0;
 
   if (wlcVerseCount === 0) {
-    console.log(
-      "\nNo WLC verses present yet — skipping Hebrew FTS check (seed WLC, then re-run validation)."
-    );
+    console.log("\nNo WLC verses present yet — skipping the Hebrew text_plain check.");
   } else {
-    const ftsCheck = await query(
-      "SELECT COUNT(*) as count FROM verses_fts WHERE verses_fts MATCH 'בראשית'"
+    const missing = await query(
+      "SELECT COUNT(*) as count FROM verses WHERE translation_id = 'wlc' AND text_plain = ''"
     );
-    const count = (ftsCheck[0]?.count as number) ?? 0;
-    console.log(`\nFTS check (unpointed בראשית): ${count} results`);
+    const count = (missing[0]?.count as number) ?? 0;
+    console.log(`\nWLC verses without text_plain: ${count}`);
 
-    if (count === 0) {
-      console.error("Migration may have failed — FTS returned 0 Hebrew results");
+    if (count > 0) {
+      console.error("Migration may have failed — some WLC verses have no text_plain");
       process.exit(1);
     }
   }

@@ -5,8 +5,7 @@
  *
  * so FTS5 returns matches in canonical order, and a translation, book or testament is a rowid
  * range. D1 bills a row per FTS match read: a count reads only the matches in scope, and a page
- * stops after offset + limit instead of sorting every match. `verses_fts` (rowid = verses.id)
- * stays for now; it is what the previous deploy searches.
+ * stops after offset + limit instead of sorting every match.
  *
  * The table is contentless (it stores no text) and kept in sync by the triggers below. Keep
  * SEARCH_INDEX_DDL in sync with schemas/schema.sql.
@@ -70,7 +69,7 @@ export const SEARCH_INDEX_DDL: readonly string[] = [
   `CREATE TRIGGER IF NOT EXISTS verses_search_ad AFTER DELETE ON verses BEGIN
     DELETE FROM verses_search WHERE rowid = ${keyOf("old")};
   END`,
-  // Scoped like verses_au: writing segments or words doesn't re-index the verse.
+  // Scoped to the key and text_plain: writing segments or words doesn't re-index the verse.
   `CREATE TRIGGER IF NOT EXISTS verses_search_au
     AFTER UPDATE OF translation_id, book_id, chapter, verse, text_plain ON verses
   BEGIN

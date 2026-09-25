@@ -50,7 +50,7 @@ npm run db:migrate:text-plain -- --remote
 This is idempotent. It:
 1. Adds `text_plain` if missing (`ALTER TABLE verses ADD COLUMN text_plain TEXT NOT NULL DEFAULT ''`).
 2. Backfills `text_plain = text` for non-WLC rows.
-3. Drops and recreates `verses_fts` + its triggers to index `text_plain`, then rebuilds.
+3. Drops and recreates `verses_fts` + its triggers to index `text_plain`, then rebuilds. (Since 2026-09-25 the script no longer does this: search uses `verses_search`, and `verses_fts` has been dropped.)
 
 **Expected output (WLC not seeded yet):**
 

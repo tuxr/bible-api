@@ -57,33 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_verses_book ON verses(book_id);
 CREATE INDEX IF NOT EXISTS idx_books_order ON books(book_order);
 CREATE INDEX IF NOT EXISTS idx_books_testament ON books(testament);
 
--- FTS5 virtual table for full-text search
--- Indexes text_plain (unpointed Hebrew for WLC; same as text for English)
-CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
-    text_plain,
-    content='verses',
-    content_rowid='id'
-);
-
--- Triggers to keep FTS index in sync with verses table
-
--- After INSERT: add new verse to FTS index
-CREATE TRIGGER IF NOT EXISTS verses_ai AFTER INSERT ON verses BEGIN
-    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-END;
-
--- After DELETE: remove verse from FTS index
-CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-END;
-
--- After UPDATE of the indexed column: update verse in FTS index.
--- Scoped to text_plain so writing other columns (segments, words) doesn't re-index the verse.
-CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE OF text_plain ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-END;
-
 -- Search index (src/lib/search-index.ts; keep SEARCH_INDEX_DDL in sync with this section).
 -- Contentless FTS5 table whose rowid is each verse's canonical position,
 --   search_id * 10^8 + book_order * 10^6 + chapter * 10^3 + verse,

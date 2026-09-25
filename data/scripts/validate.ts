@@ -161,8 +161,8 @@ async function main() {
   console.log("\nChecking FTS index...");
   const ftsResults = await query(`
     SELECT COUNT(*) as count
-    FROM verses_fts
-    WHERE verses_fts MATCH 'God'
+    FROM verses_search
+    WHERE verses_search MATCH 'God'
   `);
   const ftsCount = (ftsResults[0]?.count as number) ?? 0;
   console.log(`  FTS search for 'God': ${ftsCount} results`);
@@ -175,14 +175,14 @@ async function main() {
   // Check WLC FTS (unpointed Hebrew)
   const wlcFtsResults = await query(`
     SELECT COUNT(*) as count
-    FROM verses_fts
-    WHERE verses_fts MATCH 'בראשית'
+    FROM verses_search
+    WHERE verses_search MATCH 'בראשית'
   `);
   const wlcFtsCount = (wlcFtsResults[0]?.count as number) ?? 0;
   console.log(`  WLC FTS search for 'בראשית' (unpointed): ${wlcFtsCount} results`);
 
   if (wlcFtsCount === 0) {
-    console.error("  ERROR: WLC Hebrew FTS appears empty or broken (run db:migrate:text-plain)");
+    console.error("  ERROR: WLC Hebrew FTS appears empty or broken (run db:migrate:search-index)");
     errors++;
   }
 
@@ -190,9 +190,8 @@ async function main() {
   if (tcgntPresent) {
     const tcgntFtsResults = await query(`
       SELECT COUNT(*) as count
-      FROM verses_fts
-      JOIN verses ON verses.id = verses_fts.rowid
-      WHERE verses.translation_id = 'tcgnt' AND verses_fts MATCH 'κοσμον'
+      FROM verses_search
+      WHERE verses_search MATCH 'κοσμον'
     `);
     const tcgntFtsCount = (tcgntFtsResults[0]?.count as number) ?? 0;
     console.log(`  TCGNT FTS search for 'κοσμον' (folded): ${tcgntFtsCount} results`);

@@ -26,7 +26,7 @@ Default responses keep their shape. Only the text of the affected verses changes
 The old Worker ignores the new column and table, so migrate and backfill before merging: merging to `main` deploys the new Worker (Workers Builds).
 
 ```bash
-npm run db:migrate:words -- --remote                          # add verses.words, create lexicon, scope the FTS update trigger
+npm run db:migrate:words -- --remote                          # add verses.words, create lexicon
 npm run db:backfill:words -- --remote --dry-run               # report what would change; writes nothing
 npm run db:backfill:words -- --remote --adopt-revision=tcgnt  # see "Source revisions" below
 ```

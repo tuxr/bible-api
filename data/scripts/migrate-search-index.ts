@@ -5,8 +5,8 @@
  *
  * Additive and idempotent: adds translations.search_id, two small indexes, the verses_search
  * table and its triggers, then indexes each translation's verses that aren't indexed yet.
- * verses_fts is left as is. Every statement goes through the query API (--command), never
- * the import path (--file), so the database stays available.
+ * Every statement goes through the query API (--command), never the import path (--file),
+ * so the database stays available.
  *
  * Cost on ~105,000 verses (measured locally): the fill reads about 316,000 rows (each verse, its
  * book and translation, and an "already indexed?" probe) and writes one row per verse, about
@@ -123,7 +123,7 @@ async function fill(translationId: string): Promise<void> {
   console.log(`${translationId}: ${meta.rows_written === undefined ? "indexed" : `indexed ${meta.rows_written} new verses`}${tally(meta)}`);
 }
 
-/** Every verse indexed once, and sample searches agree with verses_fts. */
+/** Every verse indexed once. */
 async function verify(translationId: string): Promise<void> {
   const [lo, hi] = range(translationId);
   const counts = await query<{ verses: number; indexed: number }>(`SELECT
@@ -134,22 +134,6 @@ async function verify(translationId: string): Promise<void> {
   if (verses !== indexed) throw new Error(`${translationId}: verses_search holds ${indexed} rows for ${verses} verses`);
 }
 
-const SAMPLES: Record<string, string> = { web: "love", kjv: "grace", wlc: "בראשית", tcgnt: "κοσμον" };
-
-async function compareSample(translationId: string): Promise<void> {
-  const word = SAMPLES[translationId];
-  if (!word) return;
-  const [lo, hi] = range(translationId);
-  const match = `'"${word}"'`;
-  const { results, meta } = await query<{ old: number; new: number }>(`SELECT
-    (SELECT COUNT(*) FROM verses_fts JOIN verses v ON v.id = verses_fts.rowid
-      WHERE v.translation_id = '${translationId}' AND verses_fts MATCH ${match}) AS old,
-    (SELECT COUNT(*) FROM verses_search WHERE verses_search MATCH ${match} AND rowid BETWEEN ${lo} AND ${hi}) AS new`);
-  const counts = results[0]!;
-  console.log(`${translationId}: "${word}" matches ${counts.old} in verses_fts, ${counts.new} in verses_search${tally(meta)}`);
-  if (counts.old !== counts.new) throw new Error(`${translationId}: the two indexes disagree on "${word}"`);
-}
-
 async function main() {
   console.log(`Building verses_search on the ${REMOTE ? "PRODUCTION" : "local"} database\n`);
   await checkBooks();
@@ -158,10 +142,7 @@ async function main() {
   console.log("Indexes, verses_search and triggers exist");
   for (const id of translations) await fill(id);
   if (VERIFY) {
-    for (const id of translations) {
-      await verify(id);
-      await compareSample(id);
-    }
+    for (const id of translations) await verify(id);
   }
   console.log(`\nDone.${totalRead ? ` ${totalRead} rows read in total.` : ""}`);
 }
