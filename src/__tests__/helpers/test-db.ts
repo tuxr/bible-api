@@ -51,21 +51,6 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_verses_book ON verses(book_id)`,
   `CREATE INDEX IF NOT EXISTS idx_books_order ON books(book_order)`,
   `CREATE INDEX IF NOT EXISTS idx_books_testament ON books(testament)`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
-    text_plain,
-    content='verses',
-    content_rowid='id'
-  )`,
-  `CREATE TRIGGER IF NOT EXISTS verses_ai AFTER INSERT ON verses BEGIN
-    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-  END`,
-  `CREATE TRIGGER IF NOT EXISTS verses_ad AFTER DELETE ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-  END`,
-  `CREATE TRIGGER IF NOT EXISTS verses_au AFTER UPDATE OF text_plain ON verses BEGIN
-    INSERT INTO verses_fts(verses_fts, rowid, text_plain) VALUES ('delete', old.id, old.text_plain);
-    INSERT INTO verses_fts(rowid, text_plain) VALUES (new.id, new.text_plain);
-  END`,
   ...SEARCH_INDEX_DDL,
 ];
 

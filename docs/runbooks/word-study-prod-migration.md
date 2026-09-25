@@ -26,14 +26,14 @@ Default responses keep their shape. Only the text of the affected verses changes
 The old Worker ignores the new column and table, so migrate and backfill before merging: merging to `main` deploys the new Worker (Workers Builds).
 
 ```bash
-npm run db:migrate:words -- --remote                          # add verses.words, create lexicon, scope the FTS update trigger
+npm run db:migrate:words -- --remote                          # add verses.words, create lexicon
 npm run db:backfill:words -- --remote --dry-run               # report what would change; writes nothing
 npm run db:backfill:words -- --remote --adopt-revision=tcgnt  # see "Source revisions" below
 ```
 
 Remote backfills call D1's query API directly (`CLOUDFLARE_API_TOKEN` with D1 edit, account and database ids from `wrangler.toml`) in batches under 90 KB. They don't use `wrangler d1 execute --remote --file`, which goes through the import path and makes the database unavailable while each file imports. Behind an HTTPS proxy (Claude Code cloud sessions), add `NODE_USE_ENV_PROXY=1` so Node's `fetch` uses it.
 
-The migration also recreates the `verses_au` trigger as `AFTER UPDATE OF text_plain`. The FTS index covers only `text_plain`, and the old unscoped trigger would delete and re-insert the index entry of every verse the backfill touches.
+Writing `words` doesn't re-index a verse: the search index's update trigger (`verses_search_au`) fires only on the key columns and `text_plain`. (Before 2026-09-25 the migration also rescoped the old `verses_au` trigger, which has since been dropped with `verses_fts`.)
 
 ### Source revisions
 

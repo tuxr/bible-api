@@ -47,7 +47,7 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 - **Documentation** (`docs/`): Static HTML served via GitHub Pages. Separated from the API to keep forked copies clean.
 - **D1 (SQLite)**: Edge database with FTS5 for full-text search. Schema in `schemas/schema.sql`.
 - **Observability**: Enabled in `wrangler.toml`. Logs and traces available in Cloudflare dashboard under Workers → bible-api → Logs.
-- **Search index** (`src/lib/search-index.ts`): `verses_search` is a contentless FTS5 table whose rowid is the verse's canonical position (`search_id·10^8 + book_order·10^6 + chapter·10^3 + verse`), so translation, book and testament filters are rowid ranges and matches come back in order. Triggers keep it synchronized, and guard triggers reject a verse the key can't encode. A new translation needs a number in `SEARCH_IDS` before seeding; never renumber one or change a book's order. The older `verses_fts` (external content, `rowid = verses.id`) is still maintained as the rollback path. Production setup: [runbook](docs/runbooks/search-index-prod-migration.md).
+- **Search index** (`src/lib/search-index.ts`): `verses_search` is a contentless FTS5 table whose rowid is the verse's canonical position (`search_id·10^8 + book_order·10^6 + chapter·10^3 + verse`), so translation, book and testament filters are rowid ranges and matches come back in order. Triggers keep it synchronized, and guard triggers reject a verse the key can't encode. A new translation needs a number in `SEARCH_IDS` before seeding; never renumber one or change a book's order. It replaced `verses_fts` (rowid = `verses.id`), which was dropped on 2026-09-25. Production setup: [runbook](docs/runbooks/search-index-prod-migration.md).
 
 **Reference Parser** (`src/lib/parser.ts`): The most complex component. Parses Bible references like "John 3:16", "Romans 8:28-39", "1 Corinthians 13", abbreviations ("Jn", "Gen"), and URL-encoded input. Returns structured `ParsedReference` objects. Also supports comma-separated references with context inheritance (e.g., "Romans 14:14, 22-23" inherits book and chapter; "Psalm 23, 24" inherits book) via `parseMultipleReferences()`.
 
@@ -65,7 +65,6 @@ books (id, name, testament, book_order, chapters, aliases)
 verses (id, translation_id, book_id, chapter, verse, text, text_plain, segments, words)
 lexicon (id, language, entry)   -- entry is JSON; id like "G1841", "H7225", "H1254A"
 verses_search (contentless FTS5 over text_plain, rowid = canonical position; what /v1/search reads)
-verses_fts (FTS5 over text_plain, rowid = verses.id; kept for rollback)
 ```
 
 **Word study:** `data/scripts/tag-words.ts` writes `words` (JSON per verse) into `data/parsed/tcgnt.json` and `wlc.json`, and `data/parsed/lexicon/{grc,he}.json`. Greek aligns tcgnt tokens chapter-by-chapter against Robinson–Pierpont 2018 (byztxt) for Strong's/morphology and STEPBible TAGNT for glosses; Hebrew aligns WLC against STEPBible TAHOT. Pure helpers live in `src/lib/word-tagging.ts`; attribution in `src/lib/word-sources.ts`. Verse queries select explicit columns (never `words`) except the opt-in chapter response. Reports of words the sources could not tag: `data/parsed/*-tagging-report.txt`. Existing databases: `npm run db:migrate:words` then `npm run db:backfill:words` ([runbook](docs/runbooks/word-study-prod-migration.md)).
@@ -78,7 +77,7 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 
 **Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`. After pulling the keyed search index, run `npm run db:migrate:search-index` (search and `db:seed` need it).
 
-**Upgrading an existing production D1 (WLC rollout):** Migrate the schema/FTS (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
+**Upgrading an existing production D1 (WLC rollout):** Migrate the schema (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
 
 ## Updating a translation
 

@@ -55,9 +55,10 @@ npx wrangler d1 execute bible-db --remote \
   --command "DELETE FROM translations WHERE id='tcgnt'"
 ```
 
-If FTS is unexpectedly wrong after deletion, rebuild the existing external-content index:
+If search is unexpectedly wrong after deletion, re-run the search-index build: deleted verses leave `verses_search` through its `verses_search_ad` trigger, and the build re-indexes any verse that's missing.
 
 ```bash
-npx wrangler d1 execute bible-db --remote \
-  --command "INSERT INTO verses_fts(verses_fts) VALUES('rebuild')"
+npm run db:migrate:search-index -- --remote
 ```
+
+(Before 2026-09-25 this step rebuilt `verses_fts`, which has since been dropped.)
