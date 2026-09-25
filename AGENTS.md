@@ -27,6 +27,7 @@ npm run data:tag               # Tag tcgnt/wlc words + build lexicons (after par
 npm run db:schema:local        # Apply schema to local D1
 npm run db:seed                # Seed local database
 npm run data:validate          # Validate seeded data
+npm run data:export-sqlite     # Build dist/bible.sqlite + dist/bible-words.sqlite for the iOS app (after data:tag; no D1)
 
 # Database queries (local)
 npx wrangler d1 execute bible-db --local --command "SELECT COUNT(*) FROM verses"
@@ -78,6 +79,25 @@ The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebre
 **Upgrading existing local DBs:** After pulling WLC search changes, run `npm run db:migrate:text-plain` before `npm run data:validate`. After pulling the keyed search index, run `npm run db:migrate:search-index` (search and `db:seed` need it).
 
 **Upgrading an existing production D1 (WLC rollout):** Migrate the schema (`npm run db:migrate:text-plain -- --remote`) *before* seeding WLC — the `text_plain` column must exist first. The API is read-only, so WEB/KJV search stays up throughout. Full step-by-step (preconditions, verification, rollback): [`docs/runbooks/wlc-prod-migration.md`](docs/runbooks/wlc-prod-migration.md).
+
+## Bundled database for the iOS app
+
+[bible-ios](https://github.com/tuxr/bible-ios) reads scripture offline from SQLite files built from the same `data/parsed/` as D1. `npm run data:export-sqlite` (`data/scripts/export-sqlite.ts`) writes:
+
+- `dist/bible.sqlite`, bundled in the app: `schemas/schema.sql` with every verse, `verses_search` keyed exactly as in D1, and a `meta` table (`schema_version`, `built_at`, `source_revision:<id>`, `source_sha256:<id>` from `data/sources.lock.json`). The word tags are left out (`verses.words` is NULL, `lexicon` is empty): they are three quarters of the data. About 51 MB.
+- `dist/bible-words.sqlite`, for the app to download when it adds word study: `verse_words` (translation, book, chapter, verse, `words`), `lexicon` and `meta`. About 100 MB.
+
+The script refuses a `data/parsed/` that wasn't parsed from the locked zips, checks that every verse is stored and indexed once, runs `integrity_check` and FTS5's `integrity-check`, then optimizes, vacuums and sets `journal_mode=DELETE` so the file opens read-only from the app bundle. Bump `SCHEMA_VERSION` when the app would need a code change to read the file.
+
+Publish both files as assets of the `bible-db` release under the names the script prints (`bible-<schema_version>-<date>.sqlite`, `bible-words-<schema_version>-<date>.sqlite`), with their SHA-256 in the asset notes, then pin the new URL and hash in bible-ios `Data/bible-db.lock.json`:
+
+```bash
+cp dist/bible.sqlite dist/bible-1-2026-09-25.sqlite   # the names the script printed
+cp dist/bible-words.sqlite dist/bible-words-1-2026-09-25.sqlite
+gh release upload bible-db dist/bible-1-2026-09-25.sqlite dist/bible-words-1-2026-09-25.sqlite
+```
+
+Never replace an asset that has been published: bible-ios pins it by hash. A new build gets a new date.
 
 ## Updating a translation
 
