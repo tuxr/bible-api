@@ -31,10 +31,10 @@ npm run data:validate          # Validate seeded data
 # Database queries (local)
 npx wrangler d1 execute bible-db --local --command "SELECT COUNT(*) FROM verses"
 
-# Deployment
-npm run db:schema              # Apply schema to production D1
+# Production (see "Deployment" below: merging to main deploys the Worker)
+npm run db:schema              # Apply schema to production D1 (fresh database only)
 npm run db:seed -- --production  # Seed production
-npm run deploy                 # Deploy to Cloudflare
+npm run deploy                 # Manual deploy: fallback or self-hosting only
 ```
 
 ## Architecture
@@ -100,6 +100,14 @@ Gotchas:
 ## Git & Deployment Workflow
 
 **Important:** This repository deploys automatically to Cloudflare on push to `main`.
+
+### Deployment
+
+- **Merging to `main` is the deploy.** Cloudflare Workers Builds, connected to this GitHub repository, builds and deploys the `bible-api` Worker from each push to `main`, usually within a minute. GitHub Actions never deploy: `CI` runs the typecheck and tests, and `Archive sources` uploads locked source zips.
+- **Check that it landed** on the live API, e.g. a field or endpoint the change adds. Build logs and deployments are in the Cloudflare dashboard under Workers & Pages → `bible-api`.
+- **D1 is never touched by a deploy.** Schema migrations, seeds and backfills run by hand against production (`npm run db:… -- --remote`, which use wrangler or D1's query API) with the user's approval. If the new Worker needs a column or table, migrate *before merging*. If the migration is inert without the new Worker, either order works.
+- **`npm run deploy`** (`wrangler deploy`) is a manual fallback, for example when Workers Builds is down, and the way to deploy a self-hosted copy. It deploys your working tree unreviewed, so prefer merging.
+- **Rolling back:** Cloudflare can restore the previous deployment at once (dashboard → Deployments, or `npx wrangler rollback`). Then revert the change on `main`, or the next merge deploys it again.
 
 ### Rules
 - **Never** work directly on the `main` branch.
