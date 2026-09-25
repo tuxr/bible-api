@@ -9,6 +9,7 @@ import { readFile, readdir, writeFile, mkdir, access } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
 import { ALL_BOOKS, type BookData } from "../../src/lib/books-data.js";
+import { SEARCH_IDS } from "../../src/lib/search-index.js";
 import { toSearchPlainText } from "../../src/lib/hebrew.js";
 
 const PARSED_DIR = join(process.cwd(), "data", "parsed");
@@ -181,7 +182,12 @@ async function main() {
     const source = data.source
       ? `'${data.source.revision}', '${data.source.sha256}', '${new Date().toISOString()}'`
       : "NULL, NULL, NULL";
-    const translationSql = `INSERT INTO translations (id, name, language, license, description, source_revision, source_sha256, imported_at) VALUES ('${translationId}', '${escapeSql(meta.name)}', '${meta.language}', '${escapeSql(meta.license)}', '${escapeSql(meta.description)}', ${source}) ON CONFLICT (id) DO UPDATE SET name = excluded.name, language = excluded.language, license = excluded.license, description = excluded.description;`;
+    // search_id keys the search index (src/lib/search-index.ts); verses can't be inserted without it.
+    const searchId = SEARCH_IDS[translationId];
+    if (searchId === undefined) {
+      throw new Error(`Translation ${translationId} has no search id: add it to SEARCH_IDS in src/lib/search-index.ts`);
+    }
+    const translationSql = `INSERT INTO translations (id, name, language, license, description, source_revision, source_sha256, imported_at, search_id) VALUES ('${translationId}', '${escapeSql(meta.name)}', '${meta.language}', '${escapeSql(meta.license)}', '${escapeSql(meta.description)}', ${source}, ${searchId}) ON CONFLICT (id) DO UPDATE SET name = excluded.name, language = excluded.language, license = excluded.license, description = excluded.description, search_id = COALESCE(translations.search_id, excluded.search_id);`;
 
     const transFile = join(PARSED_DIR, `_${translationId}_translation.sql`);
     await writeFile(transFile, translationSql);

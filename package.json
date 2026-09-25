@@ -23,6 +23,7 @@
     "db:backfill:segments": "tsx data/scripts/backfill-segments.ts",
     "db:migrate:words": "tsx data/scripts/migrate-words.ts",
     "db:backfill:words": "tsx data/scripts/backfill-words.ts",
+    "db:migrate:search-index": "tsx data/scripts/migrate-search-index.ts",
     "db:migrate:sources": "tsx data/scripts/migrate-sources.ts"
   },
   "dependencies": {

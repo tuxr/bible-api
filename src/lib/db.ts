@@ -6,6 +6,7 @@ import type { Env, VerseRow, TranslationRow } from "../types.js";
 import type { ParsedReference } from "./parser.js";
 import { BOOKS_BY_ID } from "./books-data.js";
 import { normalizeSearchQuery } from "./hebrew.js";
+import { KEY_BOOK, KEY_CHAPTER, KEY_TRANSLATION } from "./search-index.js";
 
 /**
  * Discriminated union for database operation results
@@ -183,10 +184,12 @@ export async function getVersesForMultipleReferences(
 export const SEARCH_RESULT_WINDOW = 1000;
 
 /**
- * Search verses using FTS5
- * Runs the page and count queries independently so the total remains available
- * when pagination produces an empty page. The count stops at SEARCH_RESULT_WINDOW + 1
- * matches; `totalCapped` reports that more exist than `total` says.
+ * Search verses through `verses_search` (src/lib/search-index.ts), whose rowid is each verse's
+ * canonical position. The translation, book and testament filters become one rowid range, so
+ * FTS5 reads only matches in scope, already in order: the count stops at
+ * SEARCH_RESULT_WINDOW + 1 matches and the page after offset + limit. The two run
+ * independently so the total remains available when pagination produces an empty page;
+ * `totalCapped` reports that more match than `total` says.
  */
 export async function searchVerses(
   db: D1Database,
@@ -216,50 +219,60 @@ export async function searchVerses(
     return { success: true, data: { results: [], total: 0, totalCapped: false } };
   }
 
-  let whereClause = "WHERE v.translation_id = ?";
-  const params: (string | number)[] = [translationId];
-
+  // Numbered parameters: ?1 translation, ?2 book, ?3 testament, ?4 FTS query, then limits.
+  // An unknown book or translation makes the range empty (1 to 0) rather than NULL: FTS5
+  // ignores a NULL bound and would read every match in every translation.
+  const firstBook = ["1"];
+  const lastBook = ["99"];
   if (options?.bookId) {
-    whereClause += " AND v.book_id = ?";
-    params.push(options.bookId);
+    firstBook.push("(SELECT book_order FROM books WHERE id = ?2)");
+    lastBook.push("(SELECT book_order FROM books WHERE id = ?2)");
   }
-
   if (options?.testament) {
-    whereClause += " AND b.testament = ?";
-    params.push(options.testament);
+    firstBook.push("(SELECT MIN(book_order) FROM books WHERE testament = ?3)");
+    lastBook.push("(SELECT MAX(book_order) FROM books WHERE testament = ?3)");
   }
+  const bound = (terms: string[], fn: "MAX" | "MIN") =>
+    terms.length === 1 ? terms[0] : `${fn}(${terms.join(", ")})`;
+  // Integer arithmetic throughout: FTS5 ignores a rowid bound that isn't an integer, and D1
+  // binds JavaScript numbers as REAL.
+  const scope = `
+    WITH base AS (SELECT (SELECT search_id FROM translations WHERE id = ?1) * ${KEY_TRANSLATION} AS base),
+    scope AS (
+      SELECT COALESCE(base + ${bound(firstBook, "MAX")} * ${KEY_BOOK}, 1) AS lo,
+             COALESCE(base + ${bound(lastBook, "MIN")} * ${KEY_BOOK} + ${KEY_BOOK - 1}, 0) AS hi
+      FROM base
+    )`;
+  const inScope = `verses_search MATCH ?4
+    AND verses_search.rowid BETWEEN (SELECT lo FROM scope) AND (SELECT hi FROM scope)`;
+  const params = [translationId, options?.bookId ?? null, options?.testament ?? null, ftsQuery];
 
-  const countQuery = `
-    SELECT COUNT(*) as total_count
-    FROM (
-      SELECT 1
-      FROM verses v
-      INNER JOIN verses_fts ON v.id = verses_fts.rowid
-      INNER JOIN books b ON v.book_id = b.id
-      ${whereClause}
-      AND verses_fts MATCH ?
-      LIMIT ?
-    )
+  const countQuery = `${scope}
+    SELECT COUNT(*) AS total_count
+    FROM (SELECT 1 FROM verses_search WHERE ${inScope} LIMIT ?5)
   `;
 
-  const searchQuery = `
+  // Decode each key back to its verse: book by order (idx_books_order), then idx_verses_lookup.
+  const searchQuery = `${scope},
+    page AS (
+      SELECT rowid AS k FROM verses_search WHERE ${inScope}
+      ORDER BY rowid LIMIT ?5 OFFSET ?6
+    )
     SELECT v.id, v.translation_id, v.book_id, v.chapter, v.verse, v.text
-    FROM verses v
-    INNER JOIN verses_fts ON v.id = verses_fts.rowid
-    INNER JOIN books b ON v.book_id = b.id
-    ${whereClause}
-    AND verses_fts MATCH ?
-    ORDER BY b.book_order, v.chapter, v.verse
-    LIMIT ? OFFSET ?
+    FROM page
+    CROSS JOIN books b ON b.book_order = page.k / ${KEY_BOOK} % 100
+    CROSS JOIN verses v ON v.translation_id = ?1 AND v.book_id = b.id
+      AND v.chapter = page.k / ${KEY_CHAPTER} % 1000 AND v.verse = page.k % ${KEY_CHAPTER}
+    ORDER BY page.k
   `;
 
   try {
     const [countResult, result] = await Promise.all([
       db
         .prepare(countQuery)
-        .bind(...params, ftsQuery, SEARCH_RESULT_WINDOW + 1)
+        .bind(...params, SEARCH_RESULT_WINDOW + 1)
         .first<{ total_count: number }>(),
-      db.prepare(searchQuery).bind(...params, ftsQuery, limit, offset).all<VerseRow>(),
+      db.prepare(searchQuery).bind(...params, limit, offset).all<VerseRow>(),
     ]);
 
     const counted = Number(countResult?.total_count ?? 0);
