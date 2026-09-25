@@ -1,6 +1,6 @@
 # Handling upstream source revisions
 
-Status: accepted (2026-09-24); PR 1 in progress. Discussion copy: [Claude Docs](https://claude.ai/code/artifact/0f67199b-e532-4a33-9183-0b19c5b9c9e3). The procedure that works today is in [Updating a translation](../../AGENTS.md#updating-a-translation) and the [word study runbook](../runbooks/word-study-prod-migration.md).
+Status: accepted (2026-09-24); PR 1 done and rolled out (2026-09-25). Discussion copy: [Claude Docs](https://claude.ai/code/artifact/0f67199b-e532-4a33-9183-0b19c5b9c9e3). The procedure that works today is in [Updating a translation](../../AGENTS.md#updating-a-translation) and the [word study runbook](../runbooks/word-study-prod-migration.md).
 
 The API should notice when eBible or a word-tagging source changes, show the change as a verse-level diff, and adopt it deliberately, one translation at a time, with word tags rebuilt to match. Today none of that happens: production drifted from its sources without anyone knowing.
 
@@ -11,8 +11,8 @@ Production had silently fallen behind its sources. The word-study backfill found
 | Translation | Verses behind the current source | Kind of change | What we did |
 | --- | --- | --- | --- |
 | tcgnt | 1,215 of 7,954 | 869 punctuation, 296 accents/breathings/capitals, 49 wording | Adopted, so word tags match |
-| web | 143 of 37,499 | Wording ("in the earth" → "on the earth"); eBible zip dated 2026-09-22 | Left as is |
-| kjv | 3 of 36,822 | Apocrypha wording (Tob 3:10, Bar 6:59, 1 Macc 10:87) | Left as is |
+| web | 143 of 37,499 | Wording ("in the earth" → "on the earth"); eBible zip dated 2026-09-22 | Adopted 2026-09-25 |
+| kjv | 3 of 36,822 | Apocrypha wording (Tob 3:10, Bar 6:59, 1 Macc 10:87) | Adopted 2026-09-25 |
 | wlc | 0 | — | — |
 
 Four things in the pipeline let this go unnoticed:
@@ -64,7 +64,7 @@ Word-source bumps (a new STEPBible or byztxt commit) use the same flow: change t
 
 ## Plan
 
-Three pull requests. The pending WEB and KJV revisions become the first real run of the new flow.
+Three pull requests. The WEB and KJV revisions pending in September 2026 were adopted during PR 1's rollout, so the detect workflow's first run starts from a production that matches the lock.
 
 **PR 1: pin and record**
 
@@ -72,7 +72,7 @@ Three pull requests. The pending WEB and KJV revisions become the first real run
 - [x] Archive the baseline zips (`source-archive` release, Archive sources workflow)
 - [x] Add `source_revision`, `source_sha256`, `imported_at` to `translations` (schema, migration, seed); the backfill stamps them on adoption
 - [x] Expose `revision` on `/v1/translations`
-- [ ] Production: migrate, then record `tcgnt` and `wlc` ([runbook](../runbooks/source-revisions.md#production-rollout)). `web` and `kjv` stay unrecorded until their revisions are reviewed
+- [x] Production: migrate, record `tcgnt` and `wlc`, adopt `web` and `kjv` (2026-09-25, [runbook](../runbooks/source-revisions.md#production-rollout))
 
 **PR 2: diff and adopt**
 
@@ -84,7 +84,7 @@ Three pull requests. The pending WEB and KJV revisions become the first real run
 **PR 3: detect**
 
 - [ ] Weekly workflow: download, hash, and on a change open a pull request with the lock file, archive and report
-- [ ] First run: review and adopt (or skip) WEB's 143 verses and KJV's 3
+- [x] ~~First run: review and adopt (or skip) WEB's 143 verses and KJV's 3~~ Adopted during PR 1's rollout (2026-09-25)
 
 ## Decisions
 
@@ -92,7 +92,7 @@ Three pull requests. The pending WEB and KJV revisions become the first real run
 - **Archive location:** GitHub release assets (the `source-archive` pre-release).
 - **Revision in the API:** `/v1/translations` returns `revision` (the recorded eBible revision date, `null` when unrecorded). Chapter responses are unchanged.
 
-The baseline pins the zips eBible served on 2026-09-24. `tcgnt` and `wlc` in production should match them (the baseline run records them only if every stored verse does). `web` and `kjv` hold an older revision that eBible no longer serves and nobody archived, so their rows stay unrecorded until the pending 143 and 3 verses are reviewed and adopted.
+The baseline pins the zips eBible served on 2026-09-24. On 2026-09-25 production was confirmed to match them for `tcgnt` and `wlc`. `web` and `kjv` were moved to them (143 and 3 verses), so all four translations now record their locked revision. The owner chose to adopt these two without a verse-by-verse review, since they wouldn't have rejected eBible's corrections. The replaced WEB/KJV text was an older revision that eBible no longer serves and nobody archived; it is recoverable only through D1 Time Travel until about 2026-10-25 (bookmark in the [runbook](../runbooks/source-revisions.md#production-rollout)).
 
 ## Open questions
 
