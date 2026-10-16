@@ -47,15 +47,19 @@ lexicon.get("/:id", async (c) => {
     return badRequest(c, `Invalid lexicon id: ${idParam}`);
   }
 
-  const result = await getLexiconEntries(c.env.DB, [id]);
+  // A Hebrew number STEPBible splits by meaning ("H1254" → "H1254A", "H1254B") has no bare
+  // entry; a bare request gets the first sense. Its own id says which one it is.
+  const candidates = /^H\d+$/.test(id) ? [id, `${id}A`] : [id];
+  const result = await getLexiconEntries(c.env.DB, candidates);
   if (!result.success) {
     return serviceUnavailable(c, result.error);
   }
-  const entry = toLexiconMap([id], result.data)[id];
-  if (!entry) {
+  const found = toLexiconMap(candidates, result.data);
+  const resolved = candidates.find((candidate) => found[candidate]);
+  if (!resolved) {
     return notFound(c, `Lexicon entry not found: ${id}`);
   }
-  return jsonWithCache(c, { ...entry, attribution: lexiconAttribution([id]) }, CACHE_IMMUTABLE);
+  return jsonWithCache(c, { ...found[resolved]!, attribution: lexiconAttribution([resolved]) }, CACHE_IMMUTABLE);
 });
 
 export default lexicon;

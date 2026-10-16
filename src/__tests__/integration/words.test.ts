@@ -101,6 +101,17 @@ describe("/v1/lexicon", () => {
     expect(await res.json()).toMatchObject({ strong: "G1841" });
   });
 
+  it("answers a bare Hebrew number with its first lettered sense", async () => {
+    const res = await SELF.fetch("http://localhost/v1/lexicon/H1254");
+    expect(res.status).toBe(200);
+    const body = await parseJson<LexiconEntry & { attribution: Array<{ id: string }> }>(res);
+    expect(body).toMatchObject({ strong: "H1254A", gloss: "to create" });
+    expect(body.attribution.map((a) => a.id)).toEqual(["stepbible-tbesh", "strongs-hebrew"]);
+    // An exact entry still wins, and a Greek number is never widened.
+    expect(await (await SELF.fetch("http://localhost/v1/lexicon/H7225")).json()).toMatchObject({ strong: "H7225" });
+    expect((await SELF.fetch("http://localhost/v1/lexicon/H9999")).status).toBe(404);
+  });
+
   it("returns 404 for a missing entry and 400 for a malformed id", async () => {
     expect((await SELF.fetch("http://localhost/v1/lexicon/G9999")).status).toBe(404);
     expect((await SELF.fetch("http://localhost/v1/lexicon/logos")).status).toBe(400);

@@ -11,6 +11,7 @@
  *   add --adopt-revision=tcgnt to also move verses stored from an older upstream revision to
  *   the current source (otherwise a tagged translation aborts, an untagged one is left alone)
  *   add --translations=tcgnt,wlc to check only those; each reads all its stored verses once
+ *   add --lexicon-only to update the lexicon rows alone (no verse is read: about 15,000 rows)
  *
  * Run `npm run db:migrate:sources` first too. Once a translation's stored text matches its
  * source exactly, the backfill records that source's revision on the translations row.
@@ -38,7 +39,11 @@ const adoptRevision = new Set(
 const allIds = ["web", "kjv", "wlc", "tcgnt"];
 // --translations=tcgnt,…: only these. D1 bills per row read, and every run reads each
 // selected translation's verses once (about 120,000 rows for all four).
-const ids = process.argv.find((arg) => arg.startsWith("--translations="))?.slice("--translations=".length).split(",") ?? allIds;
+// --lexicon-only: skip the verses, for a change that only touches lexicon entries.
+const lexiconOnly = process.argv.includes("--lexicon-only");
+const ids = lexiconOnly
+  ? []
+  : process.argv.find((arg) => arg.startsWith("--translations="))?.slice("--translations=".length).split(",") ?? allIds;
 
 function escapeSql(value: string): string { return value.replace(/'/g, "''"); }
 function sqlText(value: string | null): string { return value === null ? "NULL" : `'${escapeSql(value)}'`; }

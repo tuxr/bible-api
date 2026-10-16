@@ -9,6 +9,8 @@ import {
   splitByLetterCounts,
   splitTokenWords,
   strongId,
+  strongsGreekDefinition,
+  strongsHebrewDefinition,
   tokenizeVerse,
   wordMatchScore,
 } from "../lib/word-tagging.js";
@@ -149,5 +151,72 @@ describe("words helpers", () => {
     expect(parseStoredWords("[]")).toBeUndefined();
     expect(parseStoredWords('[{"strong":"G1"}]')).toBeUndefined();
     expect(parseStoredWords('[{"surface":"λόγος"}]')).toEqual([{ surface: "λόγος" }]);
+  });
+});
+
+describe("strongsGreekDefinition", () => {
+  it("keeps a sense the XML filed under the derivation (θεός)", () => {
+    expect(
+      strongsGreekDefinition(
+        "of uncertain affinity; a deity, especially (with ὁ) the supreme Divinity;",
+        " figuratively, a magistrate; by Hebraism, very",
+      ),
+    ).toBe("a deity, especially (with ὁ) the supreme Divinity; figuratively, a magistrate; by Hebraism, very");
+  });
+
+  it("finishes an etymology the XML split inside a parenthesis (ἄνθρωπος)", () => {
+    expect(
+      strongsGreekDefinition("from ἀνήρ and ὤψ (the countenance;", " from ὀπτάνομαι); man-faced, i.e. a human being"),
+    ).toBe("man-faced, i.e. a human being");
+  });
+
+  it("uses the derivation when it is the whole entry (ἐγώ)", () => {
+    expect(strongsGreekDefinition("a primary pronoun of the first person I (only expressed when emphatic)", "")).toBe(
+      "a primary pronoun of the first person I (only expressed when emphatic)",
+    );
+  });
+
+  it("drops every etymology clause, not only the first (ἐπεῖδον)", () => {
+    expect(
+      strongsGreekDefinition("and other moods and persons of the same tense; from ἐπί and εἴδω;", " to regard (favorably or otherwise)"),
+    ).toBe("to regard (favorably or otherwise)");
+  });
+
+  it("leaves a clean split as it was (ἀγάπη)", () => {
+    expect(strongsGreekDefinition("from ἀγαπάω;", " love, i.e. affection or benevolence; specially (plural) a love-feast")).toBe(
+      "love, i.e. affection or benevolence; specially (plural) a love-feast",
+    );
+  });
+
+  it("never cuts a sense out of the definition when the derivation has no clause break", () => {
+    expect(strongsGreekDefinition("from ἀγαπάω", " love; affection")).toBe("love; affection");
+    expect(strongsGreekDefinition("", " love; affection")).toBe("love; affection");
+  });
+
+  it("returns nothing for an empty entry", () => {
+    expect(strongsGreekDefinition("", " ")).toBeUndefined();
+  });
+});
+
+describe("strongsHebrewDefinition", () => {
+  it("strips the braces some explanations are wrapped in", () => {
+    expect(strongsHebrewDefinition("a primitive root;", "{properly, to wander away, i.e. lose oneself}")).toBe(
+      "properly, to wander away, i.e. lose oneself",
+    );
+  });
+
+  it("completes a clause the exegesis opened, then drops it (הַוָּה)", () => {
+    expect(
+      strongsHebrewDefinition(
+        "from הָוָא (in the sense of eagerly coveting and rushing upon;",
+        "by implication, of falling); desire; also ruin",
+      ),
+    ).toBe("desire; also ruin");
+  });
+
+  it("keeps a balanced explanation exactly, even with an exegesis beside it (אֱלֹהִים)", () => {
+    expect(strongsHebrewDefinition("plural of אֱלוֹהַּ;", "gods in the ordinary sense; but specifically God")).toBe(
+      "gods in the ordinary sense; but specifically God",
+    );
   });
 });

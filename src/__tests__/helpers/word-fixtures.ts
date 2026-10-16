@@ -284,6 +284,17 @@ export const lexiconFixtures: LexiconEntry[] = [
     occurrences: 51
   },
   {
+    strong: "H1254A",
+    lemma: "בָּרָא",
+    language: "he",
+    transliteration: "bara",
+    pronunciation: "baw-RAW",
+    partOfSpeech: "verb",
+    gloss: "to create",
+    definition: "(absolutely) to create; (qualified) to cut down (a wood), select, feed (as formative processes)",
+    occurrences: 48
+  },
+  {
     strong: "H9003",
     lemma: "ב",
     language: "he",
