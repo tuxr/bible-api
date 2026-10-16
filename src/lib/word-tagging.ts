@@ -339,3 +339,102 @@ export function describePartOfSpeech(raw: string | undefined): string | undefine
     .filter((value): value is string => Boolean(value));
   return alternatives.length ? [...new Set(alternatives)].join(" / ") : undefined;
 }
+
+/** Index of the first ";" outside parentheses, or -1. */
+function topLevelSemicolon(text: string): number {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    else if (ch === ";" && depth === 0) return i;
+  }
+  return -1;
+}
+
+/** Parenthesis depth left open at the end of `text` (0 when balanced). */
+function openParens(text: string): number {
+  let depth = 0;
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+  }
+  return depth;
+}
+
+/** Whether `text` closes a parenthesis it never opened ("by implication, of falling); desire"). */
+function closesUnopened(text: string): boolean {
+  let depth = 0;
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    else if (ch === ")" && --depth < 0) return true;
+  }
+  return false;
+}
+
+// What an etymology clause opens with, as distinct from a sense ("a deity, …", "to regard …").
+const ETYMOLOGY_START =
+  /^(?:from|akin to|compare|probably|apparently|prolonged|perhaps|by reduplication|corresponding to|causative of|including|and other|the same as|a form of|of (?:uncertain|[\w-]+ (?:origin|affinity|derivation)))\b/i;
+
+const tidy = (text: string) =>
+  text.replace(/\s+/g, " ").replace(/\s+([;,.)])/g, "$1").trim();
+
+/** Drop leading etymology clauses: each ends at a ";" outside parentheses. */
+function dropEtymology(text: string): string {
+  let rest = text;
+  for (;;) {
+    const cut = topLevelSemicolon(rest);
+    const next = cut < 0 ? "" : rest.slice(cut + 1).trim();
+    if (!next) return rest;
+    rest = next;
+    if (!ETYMOLOGY_START.test(rest)) return rest;
+  }
+}
+
+/**
+ * The definition of a Strong's Greek entry, from its `<strongs_derivation>` and `<strongs_def>`
+ * texts (references already rendered).
+ *
+ * The XML's split between the two is unreliable: θεός keeps its main sense in the derivation
+ * ("of uncertain affinity; a deity, especially (with ὁ) the supreme Divinity;"), ἄνθρωπος splits
+ * inside a parenthesis ("… ὤψ (the countenance;" / "from ὀπτάνομαι); man-faced, …"), and ἐγώ has
+ * no `<strongs_def>` at all. So the derivation's own ";" clauses are cut instead of the element:
+ * the first, then any further clause that is still etymology. A derivation that leaves a
+ * parenthesis open runs on into the definition until it closes.
+ */
+export function strongsGreekDefinition(derivation: string, definition: string): string | undefined {
+  const deriv = tidy(derivation);
+  const def = tidy(definition);
+  if (!deriv) return def || undefined;
+
+  if (openParens(deriv) > 0) {
+    const joined = tidy(`${deriv} ${def}`);
+    return dropEtymology(joined) || undefined;
+  }
+
+  const cut = topLevelSemicolon(deriv);
+  // No clause boundary in the derivation: it is all etymology unless it is all there is.
+  if (cut < 0) return def || deriv;
+  const rest = tidy(`${deriv.slice(cut + 1)} ${def}`);
+  if (!rest) return def || undefined;
+  return ETYMOLOGY_START.test(rest) ? dropEtymology(rest) : rest;
+}
+
+/**
+ * The definition of a Strong's Hebrew entry, from its exegesis and explanation notes. The
+ * explanation is the definition and is usually split cleanly, so it is kept as written, minus
+ * the braces some entries wrap it in ("{properly, to wander away, …}"). When it opens inside a
+ * parenthesis the exegesis started (הַוָּה: "by implication, of falling); desire; also ruin"),
+ * the clause is completed from the exegesis and dropped as etymology.
+ */
+export function strongsHebrewDefinition(exegesis: string, explanation: string): string | undefined {
+  let def = tidy(explanation);
+  if (def.startsWith("{") && def.endsWith("}")) def = def.slice(1, -1).trim();
+  else def = def.replace(/^\{\s*/, "").replace(/\s*\}$/, "");
+  if (def && closesUnopened(def) && exegesis.trim()) {
+    const joined = tidy(`${exegesis} ${def}`);
+    const cut = topLevelSemicolon(joined);
+    if (cut >= 0 && cut + 1 < joined.length) def = joined.slice(cut + 1).trim();
+  }
+  return def || undefined;
+}

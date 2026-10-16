@@ -38,6 +38,8 @@ import {
   splitByLetterCounts,
   splitTokenWords,
   strongId,
+  strongsGreekDefinition,
+  strongsHebrewDefinition,
   tokenizeVerse,
   wordMatchScore,
   type LexiconEntry,
@@ -183,53 +185,58 @@ async function readTbesg(): Promise<Map<string, TbesgEntry>> {
 
 interface StrongsEntry {
   lemma?: string;
+  transliteration?: string;
   pronunciation?: string;
   definition?: string;
 }
 
+type DefinitionPart = string | { ref: string };
+
 /** Strong's Greek dictionary XML (Ulrik Petersen, public domain). */
 async function readStrongsGreek(): Promise<Map<string, StrongsEntry>> {
   const xml = await readFile(join(WORDS_DIR, "strongsgreek.xml"), "utf8");
-  const raw = new Map<string, { lemma?: string; pronunciation?: string; definition: Array<string | { ref: string }> }>();
+  type RawEntry = { lemma?: string; pronunciation?: string; derivation: DefinitionPart[]; definition: DefinitionPart[] };
+  const raw = new Map<string, RawEntry>();
   const parser = sax.parser(true, { trim: false });
-  let current: { lemma?: string; pronunciation?: string; definition: Array<string | { ref: string }> } | undefined;
-  let inDefinition = false;
+  let current: RawEntry | undefined;
+  // The derivation and the definition are both read: the XML often splits them mid-clause.
+  let into: DefinitionPart[] | undefined;
   let inHeader = false;
   parser.onopentag = (node) => {
     const attrs = node.attributes as Record<string, string>;
     if (node.name === "entry") {
-      current = { definition: [] };
+      current = { derivation: [], definition: [] };
       raw.set(`G${Number.parseInt(attrs.strongs ?? "", 10)}`, current);
     } else if (!current) return;
-    else if (node.name === "greek" && !current.lemma && !inDefinition) current.lemma = attrs.unicode?.normalize("NFC");
+    else if (node.name === "greek" && !current.lemma && !into) current.lemma = attrs.unicode?.normalize("NFC");
     else if (node.name === "pronunciation" && !current.pronunciation) current.pronunciation = attrs.strongs;
-    else if (node.name === "strongs_def") inDefinition = true;
-    else if (inDefinition && node.name === "strongsref") current.definition.push({ ref: `${attrs.language === "HEBREW" ? "H" : "G"}${Number.parseInt(attrs.strongs ?? "", 10)}` });
-    else if (inDefinition && node.name === "greek") current.definition.push(attrs.unicode ?? "");
+    else if (node.name === "strongs_derivation") into = current.derivation;
+    else if (node.name === "strongs_def") into = current.definition;
+    else if (into && node.name === "strongsref") into.push({ ref: `${attrs.language === "HEBREW" ? "H" : "G"}${Number.parseInt(attrs.strongs ?? "", 10)}` });
+    else if (into && node.name === "greek") into.push(attrs.unicode ?? "");
     else if (node.name === "strongs") inHeader = true;
   };
   parser.onclosetag = (name) => {
-    if (name === "strongs_def") inDefinition = false;
+    if (name === "strongs_def" || name === "strongs_derivation") into = undefined;
     else if (name === "strongs") inHeader = false;
     else if (name === "entry") current = undefined;
   };
   parser.ontext = (text) => {
-    if (current && inDefinition && !inHeader) current.definition.push(text);
+    if (current && into && !inHeader) into.push(text);
   };
   parser.write(xml).close();
 
   const entries = new Map<string, StrongsEntry>();
-  for (const [strong, entry] of raw) {
-    const definition = entry.definition
+  const render = (parts: DefinitionPart[]) =>
+    parts
       .map((part) => (typeof part === "string" ? part : raw.get(part.ref)?.lemma ?? part.ref))
       .join("")
-      .replace(/\s+/g, " ")
-      .trim()
       .normalize("NFC");
+  for (const [strong, entry] of raw) {
     entries.set(strong, {
       lemma: entry.lemma,
       pronunciation: respellPronunciation(entry.pronunciation),
-      definition: definition || undefined,
+      definition: strongsGreekDefinition(render(entry.derivation), render(entry.definition)),
     });
   }
   return entries;
@@ -561,24 +568,38 @@ async function readStrongsHebrew(): Promise<Map<string, StrongsEntry>> {
   const entries = new Map<string, StrongsEntry>();
   const parser = sax.parser(true, { trim: false });
   let current: StrongsEntry | undefined;
-  let definition: string | undefined;
+  let note: "exegesis" | "explanation" | undefined;
+  let exegesis = "";
+  let explanation = "";
   parser.onopentag = (node) => {
     const attrs = node.attributes as Record<string, string>;
-    if (node.name === "div" && attrs.type === "entry") current = {};
-    else if (current && node.name === "w" && attrs.ID && !current.lemma) {
+    if (node.name === "div" && attrs.type === "entry") {
+      current = {};
+      exegesis = explanation = "";
+    } else if (current && node.name === "w" && attrs.ID && !current.lemma) {
       current.lemma = attrs.lemma?.normalize("NFC");
+      // Strong's own transliteration, for the few lemmas TBESH leaves without one.
+      current.transliteration = attrs.xlit?.normalize("NFC") || undefined;
       current.pronunciation = respellPronunciation(attrs.POS);
       entries.set(attrs.ID.replace(/^H0*/, "H"), current);
-    } else if (current && node.name === "note" && attrs.type === "explanation") definition = "";
+    } else if (current && node.name === "note" && (attrs.type === "exegesis" || attrs.type === "explanation")) {
+      note = attrs.type;
+    } else if (note && node.name === "w" && attrs.lemma) {
+      // A referenced word is an empty element; its lemma stands in for it.
+      if (note === "exegesis") exegesis += attrs.lemma;
+      else explanation += attrs.lemma;
+    }
   };
   parser.onclosetag = (name) => {
-    if (name === "note" && current && definition !== undefined) {
-      current.definition = definition.replace(/\s+/g, " ").trim().normalize("NFC") || undefined;
-      definition = undefined;
-    } else if (name === "div") current = undefined;
+    if (name === "note") note = undefined;
+    else if (name === "div" && current) {
+      current.definition = strongsHebrewDefinition(exegesis.normalize("NFC"), explanation.normalize("NFC"));
+      current = undefined;
+    }
   };
   parser.ontext = (text) => {
-    if (definition !== undefined) definition += text;
+    if (note === "exegesis") exegesis += text;
+    else if (note === "explanation") explanation += text;
   };
   parser.write(xml).close();
   return entries;
@@ -695,7 +716,13 @@ async function tagHebrew() {
   const lexicon = await writeLexicon("he", ids, occurrences, (id) => {
     const step = tbesh.get(id);
     const strong = strongsFor(id);
-    return { ...step, lemma: step?.lemma ?? strong?.lemma, pronunciation: strong?.pronunciation, definition: strong?.definition };
+    return {
+      ...step,
+      lemma: step?.lemma ?? strong?.lemma,
+      transliteration: step?.transliteration ?? strong?.transliteration,
+      pronunciation: strong?.pronunciation,
+      definition: strong?.definition,
+    };
   });
 
   const summary = [
