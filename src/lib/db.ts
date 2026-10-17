@@ -4,7 +4,7 @@
 
 import type { Env, VerseRow, TranslationRow } from "../types.js";
 import type { ParsedReference } from "./parser.js";
-import { BOOKS_BY_ID } from "./books-data.js";
+import { BOOKS_BY_ID, canonicalOrder, type Testament } from "./books-data.js";
 import { normalizeSearchQuery } from "./hebrew.js";
 import { KEY_BOOK, KEY_CHAPTER, KEY_TRANSLATION } from "./search-index.js";
 
@@ -197,7 +197,8 @@ export async function searchVerses(
   translationId: string,
   options?: {
     bookId?: string;
-    testament?: "OT" | "NT" | "AP";
+    /** One testament, or several that are adjacent in canonical order (`OT` + `NT`). */
+    testament?: Testament | readonly Testament[];
     limit?: number;
     offset?: number;
   }
@@ -219,7 +220,8 @@ export async function searchVerses(
     return { success: true, data: { results: [], total: 0, totalCapped: false } };
   }
 
-  // Numbered parameters: ?1 translation, ?2 book, ?3 testament, ?4 FTS query, then limits.
+  // Numbered parameters: ?1 translation, ?2 book, ?3 and ?4 the first and last testament,
+  // ?5 FTS query, then limits.
   // An unknown book or translation makes the range empty (1 to 0) rather than NULL: FTS5
   // ignores a NULL bound and would read every match in every translation.
   const firstBook = ["1"];
@@ -228,9 +230,12 @@ export async function searchVerses(
     firstBook.push("(SELECT book_order FROM books WHERE id = ?2)");
     lastBook.push("(SELECT book_order FROM books WHERE id = ?2)");
   }
-  if (options?.testament) {
+  // Several testaments are one range from the first one's first book to the last one's last
+  // book, so the route accepts only testaments with no other between them.
+  const testaments = canonicalOrder(options?.testament === undefined ? [] : ([] as Testament[]).concat(options.testament));
+  if (testaments.length > 0) {
     firstBook.push("(SELECT MIN(book_order) FROM books WHERE testament = ?3)");
-    lastBook.push("(SELECT MAX(book_order) FROM books WHERE testament = ?3)");
+    lastBook.push("(SELECT MAX(book_order) FROM books WHERE testament = ?4)");
   }
   const bound = (terms: string[], fn: "MAX" | "MIN") =>
     terms.length === 1 ? terms[0] : `${fn}(${terms.join(", ")})`;
@@ -243,20 +248,26 @@ export async function searchVerses(
              COALESCE(base + ${bound(lastBook, "MIN")} * ${KEY_BOOK} + ${KEY_BOOK - 1}, 0) AS hi
       FROM base
     )`;
-  const inScope = `verses_search MATCH ?4
+  const inScope = `verses_search MATCH ?5
     AND verses_search.rowid BETWEEN (SELECT lo FROM scope) AND (SELECT hi FROM scope)`;
-  const params = [translationId, options?.bookId ?? null, options?.testament ?? null, ftsQuery];
+  const params = [
+    translationId,
+    options?.bookId ?? null,
+    testaments[0] ?? null,
+    testaments.at(-1) ?? null,
+    ftsQuery,
+  ];
 
   const countQuery = `${scope}
     SELECT COUNT(*) AS total_count
-    FROM (SELECT 1 FROM verses_search WHERE ${inScope} LIMIT ?5)
+    FROM (SELECT 1 FROM verses_search WHERE ${inScope} LIMIT ?6)
   `;
 
   // Decode each key back to its verse: book by order (idx_books_order), then idx_verses_lookup.
   const searchQuery = `${scope},
     page AS (
       SELECT rowid AS k FROM verses_search WHERE ${inScope}
-      ORDER BY rowid LIMIT ?5 OFFSET ?6
+      ORDER BY rowid LIMIT ?6 OFFSET ?7
     )
     SELECT v.id, v.translation_id, v.book_id, v.chapter, v.verse, v.text
     FROM page

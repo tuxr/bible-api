@@ -133,7 +133,7 @@ Word data sources: Robinson–Pierpont 2018 Strong's and parsing (public domain)
 GET /v1/search?q=love&translation=web&book=ROM&testament=NT&limit=20
 ```
 
-Every word must match. `total` counts matching verses exactly up to 1,000; past that it is `1000` and `total_capped` is `true`. Pages go up to the first 1,000 results: `offset + limit` above 1,000 returns `400`.
+Every word must match. `testament` takes one testament (`OT`, `NT`, `AP`) or a comma-separated run of adjacent ones: `testament=OT,NT` searches the 66-book canon without the Apocrypha (`OT,AP` is a `400`, because it skips the New Testament). `total` counts matching verses exactly up to 1,000; past that it is `1000` and `total_capped` is `true`. Pages go up to the first 1,000 results: `offset + limit` above 1,000 returns `400`.
 
 ```json
 { "query": "love", "translation": "web", "total": 369, "total_capped": false, "results": [ … ] }

@@ -3,10 +3,12 @@
  * Each book has a unique ID (USFX code), display name, testament, order, chapter count, and aliases
  */
 
+export type Testament = "OT" | "NT" | "AP";
+
 export interface BookData {
   id: string;
   name: string;
-  testament: "OT" | "NT" | "AP";
+  testament: Testament;
   order: number;
   chapters: number;
   aliases: string[];
@@ -142,6 +144,24 @@ export function findBook(nameOrAlias: string): BookData | undefined {
  */
 export function getBooksByTestament(testament: "OT" | "NT" | "AP"): BookData[] {
   return ALL_BOOKS.filter((b) => b.testament === testament);
+}
+
+/** These testaments, deduplicated, in the order their books come in the canon. */
+export function canonicalOrder(testaments: readonly Testament[]): Testament[] {
+  const order: readonly Testament[] = ["OT", "NT", "AP"];
+  return order.filter((t) => testaments.includes(t));
+}
+
+/**
+ * Whether these testaments' books form one run in canonical order, with no other testament's
+ * book between them (`OT` + `NT` does; `OT` + `AP` skips the New Testament).
+ */
+export function testamentsAreAdjacent(testaments: readonly Testament[]): boolean {
+  const orders = ALL_BOOKS.filter((b) => testaments.includes(b.testament)).map((b) => b.order);
+  if (orders.length === 0) return true;
+  const first = Math.min(...orders);
+  const last = Math.max(...orders);
+  return !ALL_BOOKS.some((b) => b.order > first && b.order < last && !testaments.includes(b.testament));
 }
 
 /**
