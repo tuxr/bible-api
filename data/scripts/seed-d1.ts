@@ -1,13 +1,17 @@
 /**
  * Seed D1 database with parsed Bible data
  *
- * This script reads the parsed JSON files and generates SQL files for wrangler to execute.
+ * This script reads the parsed JSON files and generates SQL statements: local D1 runs them as
+ * wrangler files, production through D1's query API (CLOUDFLARE_API_TOKEN, D1 edit).
  * Run with: npm run db:seed
+ *   npm run db:seed -- --production  # production
+ *   npm run db:seed -- --only bsb    # just these translations (comma-separated); skips the lexicons
  */
 
 import { readFile, readdir, writeFile, mkdir, access } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
+import { remoteExecute } from "./d1-remote.js";
 import { ALL_BOOKS, type BookData } from "../../src/lib/books-data.js";
 import { SEARCH_IDS } from "../../src/lib/search-index.js";
 import { toSearchPlainText } from "../../src/lib/hebrew.js";
@@ -63,8 +67,23 @@ async function ensureDir(dir: string) {
   }
 }
 
+/**
+ * Run statements against D1: production through the query API (d1-remote.ts: `--remote --file`
+ * would make the database unavailable while each file imports), local through wrangler files.
+ */
+async function write(label: string, statements: string[], isProduction: boolean) {
+  if (isProduction) return remoteExecute(label, statements);
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+    const batchFile = join(PARSED_DIR, `_${label}_${i / BATCH_SIZE}.sql`);
+    await writeFile(batchFile, statements.slice(i, i + BATCH_SIZE).join("\n"));
+    await runWrangler(["d1", "execute", "bible-db", "--local", `--file=${batchFile}`]);
+    console.log(`  ${label}: ${Math.min(i + BATCH_SIZE, statements.length)}/${statements.length}`);
+  }
+}
+
 /** Load data/parsed/lexicon/*.json (written by data:tag) into the lexicon table. */
-async function seedLexicons(flags: string[]) {
+async function seedLexicons(isProduction: boolean) {
   const lexiconDir = join(PARSED_DIR, "lexicon");
   let files: string[];
   try {
@@ -80,16 +99,10 @@ async function seedLexicons(flags: string[]) {
       entries: Array<{ strong: string }>;
     };
     console.log(`\nInserting ${entries.length} ${language} lexicon entries...`);
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-      const sql = entries
-        .slice(i, i + BATCH_SIZE)
-        .map((entry) => `INSERT OR REPLACE INTO lexicon (id, language, entry) VALUES ('${entry.strong}', '${escapeSql(language)}', '${escapeSql(JSON.stringify(entry))}');`)
-        .join("\n");
-      const batchFile = join(PARSED_DIR, `_lexicon_${language}_${i / BATCH_SIZE}.sql`);
-      await writeFile(batchFile, sql);
-      await runWrangler(["d1", "execute", "bible-db", ...flags, `--file=${batchFile}`]);
-    }
+    const statements = entries.map(
+      (entry) => `INSERT OR REPLACE INTO lexicon (id, language, entry) VALUES ('${entry.strong}', '${escapeSql(language)}', '${escapeSql(JSON.stringify(entry))}');`
+    );
+    await write(`lexicon_${language}`, statements, isProduction);
   }
 }
 
@@ -98,7 +111,6 @@ async function main() {
   console.log("==================\n");
 
   const isProduction = process.argv.includes("--production");
-  const flags = isProduction ? ["--remote"] : ["--local"];
   console.log(`Mode: ${isProduction ? "PRODUCTION (remote)" : "LOCAL"}\n`);
 
   // Read parsed files
@@ -110,9 +122,12 @@ async function main() {
     process.exit(1);
   }
 
-  const jsonFiles = files.filter((f) => f.endsWith(".json"));
-  if (jsonFiles.length === 0) {
-    console.error("No JSON files found in data/parsed/");
+  // --only <ids>: seed just these translations, so adding one doesn't re-insert every other.
+  const onlyAt = process.argv.indexOf("--only");
+  const only = onlyAt === -1 ? undefined : (process.argv[onlyAt + 1] ?? "").split(",").filter(Boolean);
+  const jsonFiles = files.filter((f) => f.endsWith(".json") && (!only || only.includes(f.replace(".json", ""))));
+  if (jsonFiles.length === 0 || (only && jsonFiles.length !== only.length)) {
+    console.error(only ? `Not every translation in --only ${only.join(",")} is in data/parsed/` : "No JSON files found in data/parsed/");
     process.exit(1);
   }
 
@@ -126,11 +141,7 @@ async function main() {
     bookStatements.push(stmt);
   }
 
-  // Execute book inserts
-  const booksSql = bookStatements.join("\n");
-  const booksFile = join(PARSED_DIR, "_books.sql");
-  await writeFile(booksFile, booksSql);
-  await runWrangler(["d1", "execute", "bible-db", ...flags, `--file=${booksFile}`]);
+  await write("books", bookStatements, isProduction);
   console.log(`  Inserted ${ALL_BOOKS.length} books`);
 
   // Process each translation
@@ -161,52 +172,20 @@ async function main() {
     }
     const translationSql = `INSERT INTO translations (id, name, language, license, description, source_revision, source_sha256, imported_at, search_id) VALUES ('${translationId}', '${escapeSql(meta.name)}', '${meta.language}', '${escapeSql(meta.license)}', '${escapeSql(meta.description)}', ${source}, ${searchId}) ON CONFLICT (id) DO UPDATE SET name = excluded.name, language = excluded.language, license = excluded.license, description = excluded.description, search_id = COALESCE(translations.search_id, excluded.search_id);`;
 
-    const transFile = join(PARSED_DIR, `_${translationId}_translation.sql`);
-    await writeFile(transFile, translationSql);
-    await runWrangler(["d1", "execute", "bible-db", ...flags, `--file=${transFile}`]);
+    await write(`${translationId}_translation`, [translationSql], isProduction);
     console.log(`  Inserted translation: ${meta.name}`);
 
-    // Insert verses in batches
-    const BATCH_SIZE = 500;
-    const batches: string[][] = [];
-    let currentBatch: string[] = [];
-
-    for (const verse of data.verses) {
+    const verseStatements = data.verses.map((verse) => {
       const textPlain = toSearchPlainText(translationId, verse.text);
       const segments = verse.segments ? `'${escapeSql(JSON.stringify(verse.segments))}'` : "NULL";
       const words = verse.words?.length ? `'${escapeSql(JSON.stringify(verse.words))}'` : "NULL";
-      const stmt = `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments}, ${words});`;
-      currentBatch.push(stmt);
-
-      if (currentBatch.length >= BATCH_SIZE) {
-        batches.push(currentBatch);
-        currentBatch = [];
-      }
-    }
-
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch);
-    }
-
-    console.log(`  Inserting ${data.verses.length} verses in ${batches.length} batches...`);
-
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-      if (!batch) continue;
-
-      const batchSql = batch.join("\n");
-      const batchFile = join(PARSED_DIR, `_${translationId}_verses_${i}.sql`);
-      await writeFile(batchFile, batchSql);
-      await runWrangler(["d1", "execute", "bible-db", ...flags, `--file=${batchFile}`]);
-
-      // Progress indicator
-      if ((i + 1) % 10 === 0 || i === batches.length - 1) {
-        console.log(`    Batch ${i + 1}/${batches.length} complete`);
-      }
-    }
+      return `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments}, ${words});`;
+    });
+    console.log(`  Inserting ${data.verses.length} verses...`);
+    await write(`${translationId}_verses`, verseStatements, isProduction);
   }
 
-  await seedLexicons(flags);
+  if (!only) await seedLexicons(isProduction);
 
   console.log("\n✓ Database seeding complete!");
   console.log("\nRun 'npm run data:validate' to verify the data.");
