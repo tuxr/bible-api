@@ -391,7 +391,7 @@ npm run deploy
 
 ## Data Sources
 
-Bible texts are sourced from [eBible.org](https://ebible.org/) in USFX (Unified Scripture Format XML) format. WEB, KJV and BSB are in the public domain.
+Bible texts are sourced from [eBible.org](https://ebible.org/) in USFX (Unified Scripture Format XML) format, except the BSB, which comes from its publisher ([bereanbible.com](https://bereanbible.com/)) in USFM so that the words of Jesus are marked. WEB, KJV and BSB are in the public domain.
 
 ## License
 
