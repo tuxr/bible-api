@@ -295,6 +295,8 @@ async function main() {
       zipFile.toLowerCase().includes("tcgnt")
     ) {
       translationId = "tcgnt";
+    } else if (zipFile.toLowerCase().includes("engbsb")) {
+      translationId = "bsb";
     } else {
       translationId = basename(zipFile, ".zip").replace(/_usfx$/, "");
     }
@@ -320,6 +322,8 @@ async function main() {
       } else if (translationId === "tcgnt") {
         result.name = "Text-Critical Greek New Testament";
         result.language = "grc";
+      } else if (translationId === "bsb") {
+        result.name = "Berean Standard Bible";
       }
 
       // Write parsed JSON

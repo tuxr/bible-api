@@ -70,7 +70,7 @@ verses_search (contentless FTS5 over text_plain, rowid = canonical position; wha
 
 **Word study:** `data/scripts/tag-words.ts` writes `words` (JSON per verse) into `data/parsed/tcgnt.json` and `wlc.json`, and `data/parsed/lexicon/{grc,he}.json`. Greek aligns tcgnt tokens chapter-by-chapter against Robinson–Pierpont 2018 (byztxt) for Strong's/morphology and STEPBible TAGNT for glosses; Hebrew aligns WLC against STEPBible TAHOT. Pure helpers live in `src/lib/word-tagging.ts`; attribution in `src/lib/word-sources.ts`. Verse queries select explicit columns (never `words`) except the opt-in chapter response. Reports of words the sources could not tag: `data/parsed/*-tagging-report.txt`. Existing databases: `npm run db:migrate:words` then `npm run db:backfill:words` ([runbook](docs/runbooks/word-study-prod-migration.md)).
 
-The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebrew OT) are also available.
+The `translation_id` defaults to "web" (World English Bible). KJV, BSB (Berean Standard Bible, 66 books) and WLC (Hebrew OT) are also available.
 
 **WLC search:** Pointed Hebrew display text is stored in `text`; `text_plain` holds unpointed text for FTS5. `src/lib/hebrew.ts` strips diacritics from queries at search time. WLC covers OT books only.
 

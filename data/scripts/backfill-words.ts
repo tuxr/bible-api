@@ -24,6 +24,7 @@ import { toSearchPlainText } from "../../src/lib/hebrew.js";
 import { Open } from "unzipper";
 import { parseUSFXBuffer } from "../../src/lib/usfx-parse.js";
 import { readLock, sha256, type ParsedSource, type SourcesLock } from "./sources-lock.js";
+import { remoteExecute, remoteQuery } from "./d1-remote.js";
 
 type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[] };
 type ParsedTranslation = { source?: ParsedSource; verses: ParsedVerse[] };
@@ -36,9 +37,9 @@ const dryRun = process.argv.includes("--dry-run");
 const adoptRevision = new Set(
   process.argv.find((arg) => arg.startsWith("--adopt-revision="))?.slice("--adopt-revision=".length).split(",") ?? []
 );
-const allIds = ["web", "kjv", "wlc", "tcgnt"];
+const allIds = ["web", "kjv", "wlc", "tcgnt", "bsb"];
 // --translations=tcgnt,…: only these. D1 bills per row read, and every run reads each
-// selected translation's verses once (about 120,000 rows for all four).
+// selected translation's verses once (about 150,000 rows for all five).
 // --lexicon-only: skip the verses, for a change that only touches lexicon entries.
 const lexiconOnly = process.argv.includes("--lexicon-only");
 const ids = lexiconOnly
@@ -62,39 +63,6 @@ function runWrangler(args: string[]): Promise<string> {
 }
 async function exists(path: string): Promise<boolean> { try { await access(path); return true; } catch { return false; } }
 
-/**
- * Production goes through D1's query API, not wrangler: `wrangler d1 execute --remote --file`
- * uses the import path, which makes the database unavailable while each file imports, and
- * ~900 `--command` launches would take over an hour. Ids come from wrangler.toml; the token
- * from CLOUDFLARE_API_TOKEN (D1 edit).
- */
-let remoteApi: { url: string; token: string } | undefined;
-async function remoteQuery<T>(sql: string): Promise<Array<{ results?: T[] }>> {
-  if (!remoteApi) {
-    const toml = await readFile(join(process.cwd(), "wrangler.toml"), "utf8");
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? toml.match(/^account_id\s*=\s*"([^"]+)"/m)?.[1];
-    const databaseId = toml.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1];
-    const token = process.env.CLOUDFLARE_API_TOKEN;
-    if (!accountId || !databaseId || !token) throw new Error("--remote needs CLOUDFLARE_API_TOKEN and account_id/database_id in wrangler.toml");
-    remoteApi = { url: `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`, token };
-  }
-  for (let attempt = 1; ; attempt++) {
-    const response = await fetch(remoteApi.url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${remoteApi.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ sql }),
-    });
-    const body = (await response.json().catch(() => ({}))) as { success?: boolean; result?: Array<{ results?: T[] }>; errors?: unknown };
-    if (response.ok && body.success) return body.result ?? [];
-    // Retry rate limits and server errors; SQL errors fail straight away.
-    if (attempt < 5 && (response.status === 429 || response.status >= 500)) {
-      await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** attempt));
-      continue;
-    }
-    throw new Error(`D1 query failed (${response.status}): ${JSON.stringify(body.errors ?? body)}`);
-  }
-}
-
 async function query<T>(sql: string): Promise<T[]> {
   if (target === "--remote") return (await remoteQuery<T>(sql))[0]?.results ?? [];
   const output = await runWrangler(["d1", "execute", "bible-db", target, "--json", `--command=${sql}`]);
@@ -107,28 +75,7 @@ async function execute(label: string, statements: string[]) {
     if (statements.length) console.log(`  ${label}: would write ${statements.length} (${(statements.reduce((n, s) => n + Buffer.byteLength(s), 0) / 1e6).toFixed(1)} MB)`);
     return;
   }
-  if (target === "--remote") {
-    const MAX_BYTES = 90_000;
-    let batch: string[] = [];
-    let bytes = 0;
-    let written = 0;
-    const flush = async () => {
-      if (!batch.length) return;
-      await remoteQuery(batch.join("\n"));
-      written += batch.length;
-      console.log(`  ${label}: ${written}/${statements.length}`);
-      batch = [];
-      bytes = 0;
-    };
-    for (const statement of statements) {
-      const size = Buffer.byteLength(statement);
-      if (bytes + size > MAX_BYTES) await flush();
-      batch.push(statement);
-      bytes += size;
-    }
-    await flush();
-    return;
-  }
+  if (target === "--remote") return remoteExecute(label, statements);
   const BATCH_SIZE = 200;
   for (let i = 0; i < statements.length; i += BATCH_SIZE) {
     const file = join(parsedDir, `_backfill_${label}_${i / BATCH_SIZE}.sql`);
@@ -142,6 +89,7 @@ const SOURCE_ZIPS: Record<string, string> = {
   kjv: "eng-kjv_usfx.zip",
   wlc: "hboWLC_usfx.zip",
   tcgnt: "grctcgnt_usfx.zip",
+  bsb: "engbsb_usfx.zip",
 };
 
 /**

@@ -19,7 +19,7 @@ curl "https://bible-api.dws-cloud.com/v1/verses/John%203:16"
 
 ## Features
 
-- **Multiple Translations**: Includes WEB (World English Bible), KJV (King James Version), and WLC (Westminster Leningrad Codex — Hebrew Old Testament)
+- **Multiple Translations**: Includes WEB (World English Bible), KJV (King James Version), BSB (Berean Standard Bible), and WLC (Westminster Leningrad Codex — Hebrew Old Testament)
 - **Full-Text Search**: Powered by SQLite FTS5 for fast, relevant search results
 - **Comprehensive**: 66 canonical books plus Apocrypha/Deuterocanonical books
 - **Flexible References**: Supports various formats (abbreviations, numbered books, URL-encoded, comma-separated with context inheritance)
@@ -81,7 +81,7 @@ Designed for sequential reading apps. Returns a full chapter with `navigation.pr
 
 Navigation includes `testament` (OT/NT/AP) so clients can handle boundaries (e.g., stop at Revelation or continue into Apocrypha).
 
-**Word study (opt-in):** `words=1` tags every word of a tagged translation (`tcgnt` Greek NT, `wlc` Hebrew OT) with its lemma, Strong's number, morphology and an English gloss, and adds the lexicon entries those words point at plus source attribution. Without `words=1` the payload is unchanged; untagged translations (`web`, `kjv`) return the normal payload.
+**Word study (opt-in):** `words=1` tags every word of a tagged translation (`tcgnt` Greek NT, `wlc` Hebrew OT) with its lemma, Strong's number, morphology and an English gloss, and adds the lexicon entries those words point at plus source attribution. Without `words=1` the payload is unchanged; untagged translations (`web`, `kjv`, `bsb`) return the normal payload.
 
 ```
 GET /v1/chapters/Luke/9?translation=tcgnt&words=1
@@ -391,7 +391,7 @@ npm run deploy
 
 ## Data Sources
 
-Bible texts are sourced from [eBible.org](https://ebible.org/) in USFX (Unified Scripture Format XML) format. Both WEB and KJV are in the public domain.
+Bible texts are sourced from [eBible.org](https://ebible.org/) in USFX (Unified Scripture Format XML) format. WEB, KJV and BSB are in the public domain.
 
 ## License
 

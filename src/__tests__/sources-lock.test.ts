@@ -55,7 +55,7 @@ describe("data/sources.lock.json", () => {
   const lock = lockJson as SourcesLock;
 
   it("pins every translation", () => {
-    expect(Object.keys(lock.texts).sort()).toEqual(["kjv", "tcgnt", "web", "wlc"]);
+    expect(Object.keys(lock.texts).sort()).toEqual(["bsb", "kjv", "tcgnt", "web", "wlc"]);
   });
 
   it.each(Object.entries(lock.texts))("%s is a complete, consistent entry", (_id, text) => {
