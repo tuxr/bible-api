@@ -37,13 +37,13 @@
       "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/grctcgnt_usfx-2026-09-24-d0864502.zip"
     },
     "bsb": {
-      "file": "engbsb_usfx.zip",
-      "url": "https://ebible.org/Scriptures/engbsb_usfx.zip",
-      "revision": "2026-10-13",
-      "sha256": "24d6ca956ac9c4d26ddf08d540ddc43d605b54db7f9938e7e38984b406b03c83",
-      "bytes": 3082093,
-      "usfxSha256": "6aceb91f809ac0572b6253de12166961be1422d0f8908192731c284753a56b65",
-      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/engbsb_usfx-2026-10-13-24d6ca95.zip"
+      "file": "bsb_usfm.zip",
+      "url": "https://bereanbible.com/bsb_usfm.zip",
+      "revision": "2026-10-02",
+      "sha256": "f0c56438eb89c98e8f62c5c00461e25cc35b098ad5b179bc350cede759ee5f87",
+      "bytes": 1598038,
+      "usfxSha256": "0bf20107f064fcb96c1a01dda6c1c39f6f6de06cd8ceaef39f6ff9af52aa216e",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/bsb_usfm-2026-10-02-f0c56438.zip"
     }
   }
 }

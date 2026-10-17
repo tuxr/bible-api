@@ -89,13 +89,15 @@ const SOURCE_ZIPS: Record<string, string> = {
   kjv: "eng-kjv_usfx.zip",
   wlc: "hboWLC_usfx.zip",
   tcgnt: "grctcgnt_usfx.zip",
-  bsb: "engbsb_usfx.zip",
+  // The publisher's USFM release, which marks the words of Jesus (eBible's engbsb does not).
+  bsb: "bsb_usfm.zip",
 };
 
 /**
  * What the parser produced before the heading and escaped-markup fixes, from the same
  * source files. A stored verse is only rewritten when it equals this: then the difference
- * is exactly those fixes, never an upstream revision that happens to look like one.
+ * is exactly those fixes, never an upstream revision that happens to look like one. A USFM
+ * source never went through the old parser, so it has none: any change is a revision.
  */
 async function legacyTexts(id: string, source: ParsedSource): Promise<Map<string, string>> {
   const path = join(process.cwd(), "data", "sources", SOURCE_ZIPS[id]!);
@@ -104,6 +106,7 @@ async function legacyTexts(id: string, source: ParsedSource): Promise<Map<string
   }
   const zip = await Open.file(path);
   const entry = zip.files.find((file) => file.path.endsWith("_usfx.xml"));
+  if (!entry && zip.files.some((file) => file.path.endsWith(".usfm"))) return new Map();
   if (!entry) throw new Error(`${id}: no USFX file in ${SOURCE_ZIPS[id]}`);
   const legacy = parseUSFXBuffer(await entry.buffer(), id, { legacy: true });
   return new Map(legacy.verses.map((verse) => [key(verse.book, verse.chapter, verse.verse), verse.text]));
@@ -136,6 +139,8 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
   let textUpdates = 0;
   let revisionUpdates = 0;
   let wordUpdates = 0;
+  let segmentUpdates = 0;
+  const segmentsDiffer: string[] = [];
   // Word tags are aligned to the parsed text, so a tagged translation must match it exactly.
   const tagged = parsed.verses.some((verse) => verse.words?.length);
   for (const verse of parsed.verses) {
@@ -157,6 +162,16 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
       const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
       statements.push(`UPDATE verses SET text = ${sqlText(verse.text)}, text_plain = ${sqlText(toSearchPlainText(id, verse.text))}, segments = ${sqlText(segments)} ${where};`);
       textUpdates++;
+    } else {
+      // Same text, different words-of-Jesus markup: the source revision marks it (as the BSB's
+      // publisher release does where eBible's had none). Rewrite it only when adopting.
+      const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
+      if (row.segments !== segments) {
+        if (adoptRevision.has(id)) {
+          statements.push(`UPDATE verses SET segments = ${sqlText(segments)} ${where};`);
+          segmentUpdates++;
+        } else segmentsDiffer.push(ref);
+      }
     }
     const words = verse.words?.length ? JSON.stringify(verse.words) : null;
     if (row.words !== words) {
@@ -169,14 +184,17 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
       `${id}: ${unexpected.length} stored verses are a different source revision, so their word tags would not match the served text: ${unexpected.slice(0, 20).join(", ")}`
     );
   }
-  if (textUpdates) {
+  if (textUpdates || segmentUpdates) {
     // Rewriting text invalidates a revision recorded for another zip. Clear it first, so a run
     // that fails partway leaves the row unrecorded rather than claiming the old revision.
     statements.unshift(`UPDATE translations SET source_revision = NULL, source_sha256 = NULL, imported_at = NULL WHERE id = '${id}' AND source_sha256 != '${source.sha256}';`);
   }
   await execute(id, statements);
   const verb = dryRun ? "to update" : "updated";
-  console.log(`${id}: ${textUpdates} verse texts ${verb} (${revisionUpdates} of them to the current source revision), ${wordUpdates} word rows ${verb}`);
+  console.log(`${id}: ${textUpdates} verse texts ${verb} (${revisionUpdates} of them to the current source revision), ${segmentUpdates} words-of-Jesus markups ${verb} on unchanged text, ${wordUpdates} word rows ${verb}`);
+  if (segmentsDiffer.length) {
+    console.log(`  ${segmentsDiffer.length} verses keep their stored words-of-Jesus markup, which differs from the source (pass --adopt-revision=${id} to rewrite it; e.g. ${segmentsDiffer.slice(0, 5).join(", ")})`);
+  }
   if (otherRevision.length) {
     console.log(`  ${otherRevision.length} verses left unchanged: stored text is a different source revision (e.g. ${otherRevision.slice(0, 5).join(", ")})`);
     return statements.length;

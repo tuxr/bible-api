@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import lockJson from "../../data/sources.lock.json";
-import { archiveUrl, revisionDate, revisionFileName, zipEntryTimes, type SourcesLock } from "../../data/scripts/sources-lock.js";
+import { archiveUrl, revisionDate, revisionFileName, scriptureSha256, sha256, zipEntryTimes, type SourcesLock } from "../../data/scripts/sources-lock.js";
 
 /** A zip's central directory + end record (all zipEntryTimes reads), one entry per spec. */
 function zipWith(entries: Array<{ dos: { date: number; time: number }; utc?: number }>): Buffer {
@@ -58,8 +58,10 @@ describe("data/sources.lock.json", () => {
     expect(Object.keys(lock.texts).sort()).toEqual(["bsb", "kjv", "tcgnt", "web", "wlc"]);
   });
 
-  it.each(Object.entries(lock.texts))("%s is a complete, consistent entry", (_id, text) => {
-    expect(text.url).toBe(`https://ebible.org/Scriptures/${text.file}`);
+  it.each(Object.entries(lock.texts))("%s is a complete, consistent entry", (id, text) => {
+    // eBible's USFX zips, except the BSB: its publisher's USFM release marks the words of Jesus.
+    const upstream = id === "bsb" ? "https://bereanbible.com/" : "https://ebible.org/Scriptures/";
+    expect(text.url).toBe(`${upstream}${text.file}`);
     expect(text.revision).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(text.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(text.usfxSha256).toMatch(/^[0-9a-f]{64}$/);
@@ -69,5 +71,24 @@ describe("data/sources.lock.json", () => {
 
   it("names archived revisions by date and hash prefix", () => {
     expect(revisionFileName("engwebp_usfx.zip", "2026-09-22", "c883ea0b8c9b")).toBe("engwebp_usfx-2026-09-22-c883ea0b.zip");
+  });
+});
+
+describe("scripture hashes", () => {
+  const entry = (path: string, text: string) => ({ path, buffer: async () => Buffer.from(text) });
+
+  it("hashes an eBible zip's USFX file", async () => {
+    expect(await scriptureSha256([entry("copr.htm", "x"), entry("engwebp_usfx.xml", "<usfx/>")])).toBe(sha256(Buffer.from("<usfx/>")));
+  });
+
+  it("hashes a USFM zip's books in path order, whatever the zip's order", async () => {
+    const books = [entry("bsb_usfm/JHN.usfm", "\\id JHN"), entry("bsb_usfm/GEN.usfm", "\\id GEN")];
+    const hash = await scriptureSha256(books);
+    expect(await scriptureSha256([...books].reverse())).toBe(hash);
+    expect(await scriptureSha256([books[0]!, entry("bsb_usfm/GEN.usfm", "\\id GEN edited")])).not.toBe(hash);
+  });
+
+  it("rejects a zip with no scripture", async () => {
+    await expect(scriptureSha256([entry("readme.txt", "")])).rejects.toThrow(/no \*_usfx\.xml or \.usfm/);
   });
 });

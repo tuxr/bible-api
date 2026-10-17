@@ -1,9 +1,11 @@
 /**
- * data/sources.lock.json: the eBible source zips each translation is built from.
+ * data/sources.lock.json: the source zips each translation is built from — eBible's USFX zips,
+ * and for the BSB its publisher's USFM release (bereanbible.com), which carries the words-of-Jesus
+ * markup eBible's BSB lacks.
  *
- * eBible serves only the latest revision of a text at an unversioned URL, so the lock pins
- * each adopted zip by SHA-256, and every locked zip is archived (see `archive`) so it can be
- * fetched and re-parsed after eBible has moved on.
+ * Both serve only the latest revision of a text at an unversioned URL, so the lock pins each
+ * adopted zip by SHA-256, and every locked zip is archived (see `archive`) so it can be fetched
+ * and re-parsed after the upstream has moved on.
  */
 
 import { createHash } from "crypto";
@@ -22,14 +24,17 @@ export const ARCHIVE_BASE = "https://github.com/tuxr/bible-api/releases/download
 export interface LockedText {
   /** File name in data/sources/ and at `url`. */
   file: string;
-  /** eBible's unversioned download URL (always the latest revision). */
+  /** The upstream's unversioned download URL (always the latest revision). */
   url: string;
-  /** Date of the newest file in the zip (YYYY-MM-DD, UTC): eBible's revision date. */
+  /** Date of the newest file in the zip (YYYY-MM-DD, UTC): the upstream's revision date. */
   revision: string;
   /** SHA-256 of the zip: the revision's identity. */
   sha256: string;
   bytes: number;
-  /** SHA-256 of the USFX XML inside the zip; tells a re-zip apart from a text change. */
+  /**
+   * SHA-256 of the scripture inside the zip (`scriptureSha256`); tells a re-zip apart from a
+   * text change. The name is historical: for a USFM zip it hashes the .usfm files.
+   */
   usfxSha256: string;
   /** Archived copy of exactly these bytes. */
   archive: string;
@@ -120,14 +125,26 @@ export function revisionDate(zip: Buffer): string {
 
 export async function zipInfo(buffer: Buffer): Promise<ZipInfo> {
   const zip = await Open.buffer(buffer);
-  const usfx = zip.files.find((entry) => entry.path.endsWith("_usfx.xml"));
-  if (!usfx) throw new Error("no *_usfx.xml in zip");
   return {
     sha256: sha256(buffer),
     bytes: buffer.length,
     revision: revisionDate(buffer),
-    usfxSha256: sha256(await usfx.buffer()),
+    usfxSha256: await scriptureSha256(zip.files),
   };
+}
+
+/**
+ * SHA-256 of the scripture a source zip holds: its *_usfx.xml (eBible), or its .usfm books in
+ * path order, each prefixed by its path (the BSB publisher's release).
+ */
+export async function scriptureSha256(files: ReadonlyArray<{ path: string; buffer(): Promise<Buffer> }>): Promise<string> {
+  const usfx = files.find((entry) => entry.path.endsWith("_usfx.xml"));
+  if (usfx) return sha256(await usfx.buffer());
+  const usfm = files.filter((entry) => entry.path.endsWith(".usfm")).sort((a, b) => a.path.localeCompare(b.path));
+  if (usfm.length === 0) throw new Error("no *_usfx.xml or .usfm files in zip");
+  const parts: Buffer[] = [];
+  for (const entry of usfm) parts.push(Buffer.from(`${entry.path}\n`), await entry.buffer());
+  return sha256(Buffer.concat(parts));
 }
 
 /** The locked text whose zip is `file`, if any. */

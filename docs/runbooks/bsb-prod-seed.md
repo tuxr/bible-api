@@ -1,6 +1,8 @@
 # BSB production seed
 
-This runbook seeds the Berean Standard Bible (eBible `engbsb`, public domain) as the `bsb` translation: 66 books, 31,086 verses, no Apocrypha. It has no words-of-Jesus markup (`segments` stay `NULL`) and no word-study tags. Existing translations are untouched.
+This runbook seeds the Berean Standard Bible (public domain) as the `bsb` translation: 66 books, 31,086 verses, no Apocrypha, no word-study tags. Existing translations are untouched.
+
+> **Source.** BSB was first seeded (2026-10-17) from eBible's `engbsb`, which has no words-of-Jesus markup. It now comes from the publisher's own USFM release (`bsb_usfm.zip`), which marks them (2,047 verses) and carries the current printing's wording. Moving an already-seeded database to it is a revision adoption, below; a fresh seed follows the steps here as they are.
 
 ## Order
 
@@ -59,3 +61,20 @@ npx wrangler d1 execute bible-db --remote \
 ```
 
 Deleted verses leave `verses_search` through its `verses_search_ad` trigger. Redeploy the Worker afterwards so cached responses that list `bsb` are dropped. Keep `bsb: 5` in `SEARCH_IDS` even after a rollback: search ids are never reused.
+
+## Moving to the publisher's source (words of Jesus)
+
+A database seeded from eBible's `engbsb` moves to `bsb_usfm.zip` like any other revision ([source revisions](source-revisions.md)). The verse set is the same (31,086 verses), so `db:backfill:words` handles it:
+
+```bash
+npm run data:download
+npm run data:parse
+CLOUDFLARE_API_TOKEN=… npm run db:backfill:words -- --remote --dry-run --translations=bsb
+CLOUDFLARE_API_TOKEN=… npm run db:backfill:words -- --remote --translations=bsb --adopt-revision=bsb
+```
+
+The dry run against the eBible seed reports 2,216 verse texts to update (the publisher's current printing: wording such as Genesis 1:21's "every winged bird", and closed-up em dashes) and 1,768 words-of-Jesus markups on otherwise unchanged text. Without `--adopt-revision=bsb` it writes nothing and lists both. Each run reads every BSB verse once (31,086 rows). Ask the user before the adopting run: it writes to production D1.
+
+Then deploy a new Worker version so Workers Caching drops cached BSB chapters, and check John 3 (`/v1/chapters/John/3?translation=bsb&segments=1` marks 17 verses), Genesis 1:21, and `/v1/translations` (`bsb` at revision `2026-10-02`).
+
+Psalm titles stay out of verse 1, as in eBible's BSB, though the publisher's `bsb.txt` prints them there.

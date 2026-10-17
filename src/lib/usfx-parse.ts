@@ -43,6 +43,38 @@ function normalizeBookId(id: string): string | null {
   return BOOK_ID_MAP[id.toUpperCase()] ?? null;
 }
 
+/**
+ * A verse from its raw text runs. Each segment is the cleaned text its run adds to the cleaned
+ * verse, so the segments always partition the verse text exactly. `clean` is the text cleanup
+ * (whitespace by default; a source can add its own normalization).
+ */
+export function buildVerse(
+  book: string,
+  chapter: number,
+  verse: number,
+  runs: ReadonlyArray<{ text: string; speaker: Speaker }>,
+  clean: (text: string) => string = cleanText
+): ParsedVerse {
+  const text = clean(runs.map((run) => run.text).join(""));
+  const rawSegments = runs.some((run) => run.speaker === "jesus")
+    ? runs.reduce<ParsedSegment[]>((segments, run, index) => {
+        const end = clean(runs.slice(0, index + 1).map((item) => item.text).join(""));
+        const start = clean(runs.slice(0, index).map((item) => item.text).join(""));
+        const segmentText = end.slice(start.length);
+        if (segmentText) {
+          const previous = segments[segments.length - 1];
+          if (previous?.speaker === run.speaker) previous.text += segmentText;
+          else segments.push({ text: segmentText, speaker: run.speaker });
+        }
+        return segments;
+      }, [])
+    : undefined;
+  if (rawSegments && rawSegments.map((segment) => segment.text).join("") !== text) {
+    throw new Error(`Segment text mismatch for ${book} ${chapter}:${verse}`);
+  }
+  return { book, chapter, verse, text, ...(rawSegments?.length ? { segments: rawSegments } : {}) };
+}
+
 export interface ParseOptions {
   /**
    * Reproduce the parser before the heading and escaped-markup fixes. Used only by
@@ -77,24 +109,7 @@ export function parseUSFXBuffer(buffer: Buffer, translationId: string, options: 
 
   const flushVerse = () => {
     if (inVerse && verseText.trim() && currentBook) {
-      const text = cleanText(verseText);
-      const rawSegments = runs.some((run) => run.speaker === "jesus")
-        ? runs.reduce<ParsedSegment[]>((segments, run, index) => {
-            const end = cleanText(runs.slice(0, index + 1).map((item) => item.text).join(""));
-            const start = cleanText(runs.slice(0, index).map((item) => item.text).join(""));
-            const segmentText = end.slice(start.length);
-            if (segmentText) {
-              const previous = segments[segments.length - 1];
-              if (previous?.speaker === run.speaker) previous.text += segmentText;
-              else segments.push({ text: segmentText, speaker: run.speaker });
-            }
-            return segments;
-          }, [])
-        : undefined;
-      if (rawSegments && rawSegments.map((segment) => segment.text).join("") !== text) {
-        throw new Error(`Segment text mismatch for ${currentBook} ${currentChapter}:${currentVerse}`);
-      }
-      verses.push({ book: currentBook, chapter: currentChapter, verse: currentVerse, text, ...(rawSegments?.length ? { segments: rawSegments } : {}) });
+      verses.push(buildVerse(currentBook, currentChapter, currentVerse, runs));
     }
     verseText = "";
     runs = [];
