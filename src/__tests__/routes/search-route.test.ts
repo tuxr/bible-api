@@ -111,6 +111,35 @@ describe("GET /v1/search route", () => {
     });
   });
 
+  it("passes a run of adjacent testaments through as one filter", async () => {
+    const res = await search.request("/?q=God&testament=ot,%20NT,ot", {}, createRouteEnv());
+
+    expect(res.status).toBe(200);
+    expect(searchVerses).toHaveBeenCalledWith(
+      expect.anything(),
+      "God",
+      "web",
+      expect.objectContaining({ testament: ["OT", "NT"] })
+    );
+  });
+
+  it("returns 400 for testaments that skip one between them", async () => {
+    const res = await search.request("/?q=God&testament=OT,AP", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Testaments must be adjacent in canonical order (OT,NT or NT,AP)",
+    });
+    expect(searchVerses).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when one listed testament is unknown", async () => {
+    const res = await search.request("/?q=God&testament=OT,XX", {}, createRouteEnv());
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Testament must be OT, NT, or AP" });
+  });
+
   it("returns 400 for a limit with trailing non-numeric characters", async () => {
     const res = await search.request("/?q=loved&limit=3foo", {}, createRouteEnv());
 

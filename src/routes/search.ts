@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import type { Env, SearchApiResponse } from "../types.js";
 import { searchVerses, getTranslation, getBookName, SEARCH_RESULT_WINDOW } from "../lib/db.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_SHORT } from "../lib/response.js";
-import { findBook } from "../lib/books-data.js";
+import { findBook, testamentsAreAdjacent, type Testament } from "../lib/books-data.js";
 import { parseDecimalInteger } from "../lib/numbers.js";
 import { rateLimitMiddleware, SEARCH_RATE_LIMIT } from "../lib/rate-limit.js";
 
@@ -51,14 +51,18 @@ search.get("/", async (c) => {
     bookId = book.id;
   }
 
-  // Validate testament parameter
-  let testament: "OT" | "NT" | "AP" | undefined;
+  // Validate testament parameter: one testament, or a comma-separated run of adjacent ones
+  // ("OT,NT" is the Protestant canon without the Apocrypha).
+  let testament: Testament[] | undefined;
   if (testamentParam) {
-    const upper = testamentParam.toUpperCase();
-    if (upper !== "OT" && upper !== "NT" && upper !== "AP") {
+    const requested = [...new Set(testamentParam.toUpperCase().split(",").map((t) => t.trim()))];
+    if (!requested.every((t): t is Testament => t === "OT" || t === "NT" || t === "AP")) {
       return badRequest(c, "Testament must be OT, NT, or AP");
     }
-    testament = upper;
+    if (!testamentsAreAdjacent(requested)) {
+      return badRequest(c, "Testaments must be adjacent in canonical order (OT,NT or NT,AP)");
+    }
+    testament = requested;
   }
 
   // Parse pagination as strict decimal integers to reject malformed values.

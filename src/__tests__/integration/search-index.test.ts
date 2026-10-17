@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { setupTestDatabase } from "../helpers/test-db.js";
 import { searchVerses } from "../../lib/db.js";
-import { ALL_BOOKS } from "../../lib/books-data.js";
+import { ALL_BOOKS, testamentsAreAdjacent } from "../../lib/books-data.js";
 import { KEY_BOOK, KEY_TRANSLATION, SEARCH_IDS } from "../../lib/search-index.js";
 
 async function search(q: string, translation = "web", options?: Parameters<typeof searchVerses>[3]) {
@@ -63,6 +63,23 @@ describe("verses_search triggers", () => {
     expect((await search("keyedorder", "wlc")).total).toBe(1);
     expect(order(await search("keyedorder", "web", { offset: 1, limit: 1 }))).toEqual(["EXO"]);
   });
+
+  it("scopes adjacent testaments to one range, leaving the Apocrypha out of OT + NT", async () => {
+    await env.DB.prepare(
+      `INSERT INTO books (id, name, testament, book_order, chapters, aliases) VALUES ('TOB', 'Tobit', 'AP', 67, 14, '[]')`
+    ).run();
+    await insertVerse("web", "TOB", 1, 1, "keyedcanon");
+    await insertVerse("web", "EXO", 12, 12, "keyedcanon");
+    await insertVerse("web", "JHN", 11, 35, "keyedcanon");
+
+    const books = async (testament: Parameters<typeof searchVerses>[3]) =>
+      (await search("keyedcanon", "web", testament)).results.map((v) => v.book_id);
+    expect(await books({})).toEqual(["EXO", "JHN", "TOB"]);
+    expect(await books({ testament: ["OT", "NT"] })).toEqual(["EXO", "JHN"]);
+    expect(await books({ testament: ["NT", "AP"] })).toEqual(["JHN", "TOB"]);
+    expect(await books({ testament: ["AP"] })).toEqual(["TOB"]);
+    expect((await search("keyedcanon", "web", { testament: ["OT", "NT"] })).total).toBe(2);
+  });
 });
 
 describe("verses_search guards", () => {
@@ -95,5 +112,12 @@ describe("key layout", () => {
       const orders = ALL_BOOKS.filter((b) => b.testament === t).map((b) => b.order).sort((a, b) => a - b);
       expect(orders.at(-1)! - orders[0]! + 1).toBe(orders.length);
     }
+  });
+
+  it("knows which testament runs are one range", () => {
+    expect(testamentsAreAdjacent(["OT", "NT"])).toBe(true);
+    expect(testamentsAreAdjacent(["NT", "AP"])).toBe(true);
+    expect(testamentsAreAdjacent(["OT", "NT", "AP"])).toBe(true);
+    expect(testamentsAreAdjacent(["OT", "AP"])).toBe(false);
   });
 });
