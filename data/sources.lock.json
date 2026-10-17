@@ -35,6 +35,15 @@
       "bytes": 995535,
       "usfxSha256": "b12c19c3eff6447d5e172834af7e8375adb45e820f79a889992748bfb47e6e3f",
       "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/grctcgnt_usfx-2026-09-24-d0864502.zip"
+    },
+    "bsb": {
+      "file": "bsb_usfm.zip",
+      "url": "https://bereanbible.com/bsb_usfm.zip",
+      "revision": "2026-10-02",
+      "sha256": "f0c56438eb89c98e8f62c5c00461e25cc35b098ad5b179bc350cede759ee5f87",
+      "bytes": 1598038,
+      "usfxSha256": "0bf20107f064fcb96c1a01dda6c1c39f6f6de06cd8ceaef39f6ff9af52aa216e",
+      "archive": "https://github.com/tuxr/bible-api/releases/download/source-archive/bsb_usfm-2026-10-02-f0c56438.zip"
     }
   }
 }

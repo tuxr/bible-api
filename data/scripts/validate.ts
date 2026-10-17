@@ -131,6 +131,10 @@ async function main() {
       console.error(`    ERROR: WLC should have ~23,000 verses`);
       errors++;
     }
+    if (row.translation_id === "bsb" && count < 31000) {
+      console.error("    ERROR: BSB should have ~31,000 verses");
+      errors++;
+    }
     if (row.translation_id === "tcgnt" && count < 7900) {
       console.error("    ERROR: TCGNT should have ~7954 verses");
       errors++;

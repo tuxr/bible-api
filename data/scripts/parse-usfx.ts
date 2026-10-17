@@ -11,6 +11,7 @@ import { join, basename } from "path";
 import sax from "sax";
 import { Open } from "unzipper";
 import { parseUSFXBuffer as parseUSFXBufferWithSegments } from "../../src/lib/usfx-parse.js";
+import { bsbUsfmCleanup, parseUSFMBooks } from "../../src/lib/usfm-parse.js";
 import { lockedByFile, readLock, revisionDate, sha256, type ParsedSource } from "./sources-lock.js";
 
 const SOURCES_DIR = join(process.cwd(), "data", "sources");
@@ -235,19 +236,20 @@ async function extractAndParseZip(zipPath: string, translationId: string): Promi
   // Open the zip file
   const directory = await Open.file(zipPath);
 
-  // Find the main USFX XML file (ends with _usfx.xml)
+  // An eBible zip holds one USFX file (*_usfx.xml); the BSB publisher's holds a .usfm per book.
   const usfxEntry = directory.files.find(f => f.path.endsWith("_usfx.xml"));
-
-  if (!usfxEntry) {
-    throw new Error(`No USFX file found in ${zipPath}`);
+  if (usfxEntry) {
+    console.log(`  Processing: ${usfxEntry.path}`);
+    return parseUSFXBufferWithSegments(await usfxEntry.buffer(), translationId);
   }
 
-  console.log(`  Processing: ${usfxEntry.path}`);
-
-  // Read the file content
-  const buffer = await usfxEntry.buffer();
-
-  return parseUSFXBufferWithSegments(buffer, translationId);
+  const usfmEntries = directory.files.filter((f) => f.path.endsWith(".usfm"));
+  if (usfmEntries.length === 0) {
+    throw new Error(`No USFX or USFM files found in ${zipPath}`);
+  }
+  console.log(`  Processing: ${usfmEntries.length} USFM books`);
+  const books = await Promise.all(usfmEntries.map(async (entry) => ({ name: entry.path, content: (await entry.buffer()).toString("utf8") })));
+  return parseUSFMBooks(books, translationId, translationId === "bsb" ? { cleanup: bsbUsfmCleanup } : {});
 }
 
 async function ensureDir(dir: string) {
@@ -295,6 +297,8 @@ async function main() {
       zipFile.toLowerCase().includes("tcgnt")
     ) {
       translationId = "tcgnt";
+    } else if (zipFile.toLowerCase().includes("engbsb") || zipFile === "bsb_usfm.zip") {
+      translationId = "bsb";
     } else {
       translationId = basename(zipFile, ".zip").replace(/_usfx$/, "");
     }
@@ -320,6 +324,8 @@ async function main() {
       } else if (translationId === "tcgnt") {
         result.name = "Text-Critical Greek New Testament";
         result.language = "grc";
+      } else if (translationId === "bsb") {
+        result.name = "Berean Standard Bible";
       }
 
       // Write parsed JSON

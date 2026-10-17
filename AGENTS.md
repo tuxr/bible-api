@@ -54,9 +54,9 @@ This is a Bible API running on Cloudflare's edge. The key architectural decision
 
 **Book Data** (`src/lib/books-data.ts`): Contains 86 books (OT + NT + Apocrypha) with USFX IDs, aliases, and chapter counts. The `findBook()` function resolves any book name/alias to its canonical data. Single-chapter books (Jude, Philemon, 2 John, 3 John, Obadiah) are handled specially in the parser.
 
-**Data Pipeline** (`data/scripts/`): Downloads USFX XML from ebible.org, parses with SAX streaming parser, and seeds D1 via wrangler. Parsed JSON stored in `data/parsed/` (gitignored).
+**Data Pipeline** (`data/scripts/`): Downloads USFX XML from ebible.org, parses with SAX streaming parser, and seeds D1 via wrangler. The BSB is the exception: it comes from its publisher's USFM release (`bereanbible.com/bsb_usfm.zip`, parsed by `src/lib/usfm-parse.ts`), because eBible's BSB has no words-of-Jesus markup; `bsbUsfmCleanup` repairs the converter's typesetting artifacts so every verse equals the publisher's `bsb.txt`. Parsed JSON stored in `data/parsed/` (gitignored).
 
-**Source revisions:** eBible revises texts at unversioned URLs. `data/sources.lock.json` pins each zip by SHA-256 (`data:download` enforces it; `--refresh` moves the lock to eBible's current revisions), each locked zip is archived as a `source-archive` release asset (`data:archive`, run by the Archive sources workflow), and `translations.source_*` records the revision the stored verses match (`/v1/translations` returns it as `revision`, `null` when unrecorded). Never adopt a new revision in production without reviewing it. [Runbook](docs/runbooks/source-revisions.md).
+**Source revisions:** eBible (and the BSB's publisher) revise texts at unversioned URLs. `data/sources.lock.json` pins each zip by SHA-256 (`data:download` enforces it; `--refresh` moves the lock to eBible's current revisions), each locked zip is archived as a `source-archive` release asset (`data:archive`, run by the Archive sources workflow), and `translations.source_*` records the revision the stored verses match (`/v1/translations` returns it as `revision`, `null` when unrecorded). Never adopt a new revision in production without reviewing it. [Runbook](docs/runbooks/source-revisions.md).
 
 ## Database Schema
 
@@ -70,7 +70,7 @@ verses_search (contentless FTS5 over text_plain, rowid = canonical position; wha
 
 **Word study:** `data/scripts/tag-words.ts` writes `words` (JSON per verse) into `data/parsed/tcgnt.json` and `wlc.json`, and `data/parsed/lexicon/{grc,he}.json`. Greek aligns tcgnt tokens chapter-by-chapter against Robinson–Pierpont 2018 (byztxt) for Strong's/morphology and STEPBible TAGNT for glosses; Hebrew aligns WLC against STEPBible TAHOT. Pure helpers live in `src/lib/word-tagging.ts`; attribution in `src/lib/word-sources.ts`. Verse queries select explicit columns (never `words`) except the opt-in chapter response. Reports of words the sources could not tag: `data/parsed/*-tagging-report.txt`. Existing databases: `npm run db:migrate:words` then `npm run db:backfill:words` ([runbook](docs/runbooks/word-study-prod-migration.md)).
 
-The `translation_id` defaults to "web" (World English Bible). KJV and WLC (Hebrew OT) are also available.
+The `translation_id` defaults to "web" (World English Bible). KJV, BSB (Berean Standard Bible, 66 books) and WLC (Hebrew OT) are also available.
 
 **WLC search:** Pointed Hebrew display text is stored in `text`; `text_plain` holds unpointed text for FTS5. `src/lib/hebrew.ts` strips diacritics from queries at search time. WLC covers OT books only.
 

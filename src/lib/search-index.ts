@@ -12,7 +12,7 @@
  */
 
 /** Each translation's leading key digit(s). Never renumber: the index is keyed by it. */
-export const SEARCH_IDS: Readonly<Record<string, number>> = { web: 1, kjv: 2, wlc: 3, tcgnt: 4 };
+export const SEARCH_IDS: Readonly<Record<string, number>> = { web: 1, kjv: 2, wlc: 3, tcgnt: 4, bsb: 5 };
 
 export const KEY_TRANSLATION = 100_000_000;
 export const KEY_BOOK = 1_000_000;

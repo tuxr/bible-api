@@ -24,6 +24,7 @@ import { toSearchPlainText } from "../../src/lib/hebrew.js";
 import { Open } from "unzipper";
 import { parseUSFXBuffer } from "../../src/lib/usfx-parse.js";
 import { readLock, sha256, type ParsedSource, type SourcesLock } from "./sources-lock.js";
+import { remoteExecute, remoteQuery } from "./d1-remote.js";
 
 type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[] };
 type ParsedTranslation = { source?: ParsedSource; verses: ParsedVerse[] };
@@ -36,9 +37,9 @@ const dryRun = process.argv.includes("--dry-run");
 const adoptRevision = new Set(
   process.argv.find((arg) => arg.startsWith("--adopt-revision="))?.slice("--adopt-revision=".length).split(",") ?? []
 );
-const allIds = ["web", "kjv", "wlc", "tcgnt"];
+const allIds = ["web", "kjv", "wlc", "tcgnt", "bsb"];
 // --translations=tcgnt,…: only these. D1 bills per row read, and every run reads each
-// selected translation's verses once (about 120,000 rows for all four).
+// selected translation's verses once (about 150,000 rows for all five).
 // --lexicon-only: skip the verses, for a change that only touches lexicon entries.
 const lexiconOnly = process.argv.includes("--lexicon-only");
 const ids = lexiconOnly
@@ -62,39 +63,6 @@ function runWrangler(args: string[]): Promise<string> {
 }
 async function exists(path: string): Promise<boolean> { try { await access(path); return true; } catch { return false; } }
 
-/**
- * Production goes through D1's query API, not wrangler: `wrangler d1 execute --remote --file`
- * uses the import path, which makes the database unavailable while each file imports, and
- * ~900 `--command` launches would take over an hour. Ids come from wrangler.toml; the token
- * from CLOUDFLARE_API_TOKEN (D1 edit).
- */
-let remoteApi: { url: string; token: string } | undefined;
-async function remoteQuery<T>(sql: string): Promise<Array<{ results?: T[] }>> {
-  if (!remoteApi) {
-    const toml = await readFile(join(process.cwd(), "wrangler.toml"), "utf8");
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? toml.match(/^account_id\s*=\s*"([^"]+)"/m)?.[1];
-    const databaseId = toml.match(/^database_id\s*=\s*"([^"]+)"/m)?.[1];
-    const token = process.env.CLOUDFLARE_API_TOKEN;
-    if (!accountId || !databaseId || !token) throw new Error("--remote needs CLOUDFLARE_API_TOKEN and account_id/database_id in wrangler.toml");
-    remoteApi = { url: `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`, token };
-  }
-  for (let attempt = 1; ; attempt++) {
-    const response = await fetch(remoteApi.url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${remoteApi.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ sql }),
-    });
-    const body = (await response.json().catch(() => ({}))) as { success?: boolean; result?: Array<{ results?: T[] }>; errors?: unknown };
-    if (response.ok && body.success) return body.result ?? [];
-    // Retry rate limits and server errors; SQL errors fail straight away.
-    if (attempt < 5 && (response.status === 429 || response.status >= 500)) {
-      await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** attempt));
-      continue;
-    }
-    throw new Error(`D1 query failed (${response.status}): ${JSON.stringify(body.errors ?? body)}`);
-  }
-}
-
 async function query<T>(sql: string): Promise<T[]> {
   if (target === "--remote") return (await remoteQuery<T>(sql))[0]?.results ?? [];
   const output = await runWrangler(["d1", "execute", "bible-db", target, "--json", `--command=${sql}`]);
@@ -107,28 +75,7 @@ async function execute(label: string, statements: string[]) {
     if (statements.length) console.log(`  ${label}: would write ${statements.length} (${(statements.reduce((n, s) => n + Buffer.byteLength(s), 0) / 1e6).toFixed(1)} MB)`);
     return;
   }
-  if (target === "--remote") {
-    const MAX_BYTES = 90_000;
-    let batch: string[] = [];
-    let bytes = 0;
-    let written = 0;
-    const flush = async () => {
-      if (!batch.length) return;
-      await remoteQuery(batch.join("\n"));
-      written += batch.length;
-      console.log(`  ${label}: ${written}/${statements.length}`);
-      batch = [];
-      bytes = 0;
-    };
-    for (const statement of statements) {
-      const size = Buffer.byteLength(statement);
-      if (bytes + size > MAX_BYTES) await flush();
-      batch.push(statement);
-      bytes += size;
-    }
-    await flush();
-    return;
-  }
+  if (target === "--remote") return remoteExecute(label, statements);
   const BATCH_SIZE = 200;
   for (let i = 0; i < statements.length; i += BATCH_SIZE) {
     const file = join(parsedDir, `_backfill_${label}_${i / BATCH_SIZE}.sql`);
@@ -142,12 +89,15 @@ const SOURCE_ZIPS: Record<string, string> = {
   kjv: "eng-kjv_usfx.zip",
   wlc: "hboWLC_usfx.zip",
   tcgnt: "grctcgnt_usfx.zip",
+  // The publisher's USFM release, which marks the words of Jesus (eBible's engbsb does not).
+  bsb: "bsb_usfm.zip",
 };
 
 /**
  * What the parser produced before the heading and escaped-markup fixes, from the same
  * source files. A stored verse is only rewritten when it equals this: then the difference
- * is exactly those fixes, never an upstream revision that happens to look like one.
+ * is exactly those fixes, never an upstream revision that happens to look like one. A USFM
+ * source never went through the old parser, so it has none: any change is a revision.
  */
 async function legacyTexts(id: string, source: ParsedSource): Promise<Map<string, string>> {
   const path = join(process.cwd(), "data", "sources", SOURCE_ZIPS[id]!);
@@ -156,6 +106,7 @@ async function legacyTexts(id: string, source: ParsedSource): Promise<Map<string
   }
   const zip = await Open.file(path);
   const entry = zip.files.find((file) => file.path.endsWith("_usfx.xml"));
+  if (!entry && zip.files.some((file) => file.path.endsWith(".usfm"))) return new Map();
   if (!entry) throw new Error(`${id}: no USFX file in ${SOURCE_ZIPS[id]}`);
   const legacy = parseUSFXBuffer(await entry.buffer(), id, { legacy: true });
   return new Map(legacy.verses.map((verse) => [key(verse.book, verse.chapter, verse.verse), verse.text]));
@@ -188,6 +139,8 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
   let textUpdates = 0;
   let revisionUpdates = 0;
   let wordUpdates = 0;
+  let segmentUpdates = 0;
+  const segmentsDiffer: string[] = [];
   // Word tags are aligned to the parsed text, so a tagged translation must match it exactly.
   const tagged = parsed.verses.some((verse) => verse.words?.length);
   for (const verse of parsed.verses) {
@@ -209,6 +162,16 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
       const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
       statements.push(`UPDATE verses SET text = ${sqlText(verse.text)}, text_plain = ${sqlText(toSearchPlainText(id, verse.text))}, segments = ${sqlText(segments)} ${where};`);
       textUpdates++;
+    } else {
+      // Same text, different words-of-Jesus markup: the source revision marks it (as the BSB's
+      // publisher release does where eBible's had none). Rewrite it only when adopting.
+      const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
+      if (row.segments !== segments) {
+        if (adoptRevision.has(id)) {
+          statements.push(`UPDATE verses SET segments = ${sqlText(segments)} ${where};`);
+          segmentUpdates++;
+        } else segmentsDiffer.push(ref);
+      }
     }
     const words = verse.words?.length ? JSON.stringify(verse.words) : null;
     if (row.words !== words) {
@@ -221,14 +184,17 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
       `${id}: ${unexpected.length} stored verses are a different source revision, so their word tags would not match the served text: ${unexpected.slice(0, 20).join(", ")}`
     );
   }
-  if (textUpdates) {
+  if (textUpdates || segmentUpdates) {
     // Rewriting text invalidates a revision recorded for another zip. Clear it first, so a run
     // that fails partway leaves the row unrecorded rather than claiming the old revision.
     statements.unshift(`UPDATE translations SET source_revision = NULL, source_sha256 = NULL, imported_at = NULL WHERE id = '${id}' AND source_sha256 != '${source.sha256}';`);
   }
   await execute(id, statements);
   const verb = dryRun ? "to update" : "updated";
-  console.log(`${id}: ${textUpdates} verse texts ${verb} (${revisionUpdates} of them to the current source revision), ${wordUpdates} word rows ${verb}`);
+  console.log(`${id}: ${textUpdates} verse texts ${verb} (${revisionUpdates} of them to the current source revision), ${segmentUpdates} words-of-Jesus markups ${verb} on unchanged text, ${wordUpdates} word rows ${verb}`);
+  if (segmentsDiffer.length) {
+    console.log(`  ${segmentsDiffer.length} verses keep their stored words-of-Jesus markup, which differs from the source (pass --adopt-revision=${id} to rewrite it; e.g. ${segmentsDiffer.slice(0, 5).join(", ")})`);
+  }
   if (otherRevision.length) {
     console.log(`  ${otherRevision.length} verses left unchanged: stored text is a different source revision (e.g. ${otherRevision.slice(0, 5).join(", ")})`);
     return statements.length;

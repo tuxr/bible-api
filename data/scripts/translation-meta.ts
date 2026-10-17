@@ -21,6 +21,12 @@ export const TRANSLATION_META: Record<string, { name: string; language: string; 
     license: "Public Domain (text); CC BY 4.0 (OSHB lemma/morphology)",
     description: "Hebrew Old Testament text based on the Westminster Leningrad Codex (Masoretic Text)",
   },
+  bsb: {
+    name: "Berean Standard Bible",
+    language: "en",
+    license: "Public Domain",
+    description: "A modern English translation in the public domain. Protestant canon (66 books, no Apocrypha).",
+  },
   tcgnt: {
     name: "Text-Critical Greek New Testament",
     language: "grc",
