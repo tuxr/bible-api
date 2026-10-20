@@ -7,7 +7,8 @@
  * parser fix, or an older upstream revision) is left alone and reported: bring its text up to
  * date with db:backfill:words, which writes the layout with the text.
  *
- * Run `npm run db:migrate:layout` first. Idempotent: a second run reports zero writes.
+ * Run `npm run db:migrate:layout` first (a --dry-run works without it, reading every stored
+ * layout as empty). Idempotent: a second run reports zero writes.
  *   npm run db:backfill:layout              # local
  *   npm run db:backfill:layout -- --remote  # production (D1 query API, CLOUDFLARE_API_TOKEN)
  *   add --dry-run to report what would be written without writing
@@ -81,6 +82,10 @@ function storedLayoutFor(verse: ParsedVerse): string | null {
   return JSON.stringify(verse.layout);
 }
 
+// Set in main(). A dry run before db:migrate:layout reads every stored layout as NULL, so the
+// numbers can be reviewed before the column is added; a real run needs the column.
+let layoutColumn = "layout";
+
 async function backfill(id: string, lockSha: string | undefined): Promise<number> {
   const file = join(parsedDir, `${id}.json`);
   if (!(await exists(file))) { console.log(`Skipping ${id}: parsed JSON not found`); return 0; }
@@ -92,7 +97,7 @@ async function backfill(id: string, lockSha: string | undefined): Promise<number
   // By book, so no single response carries a whole translation.
   const stored = new Map<string, StoredVerse>();
   for (const bookId of new Set(parsed.verses.map((verse) => verse.book))) {
-    const rows = await query<StoredVerse>(`SELECT book_id, chapter, verse, text, layout FROM verses WHERE translation_id = '${id}' AND book_id = '${bookId}'`);
+    const rows = await query<StoredVerse>(`SELECT book_id, chapter, verse, text, ${layoutColumn} AS layout FROM verses WHERE translation_id = '${id}' AND book_id = '${bookId}'`);
     for (const row of rows) stored.set(key(row.book_id, row.chapter, row.verse), row);
   }
 
@@ -131,7 +136,9 @@ async function main() {
   }
   const columns = await query<{ name: string }>("PRAGMA table_info(verses)");
   if (!columns.some((column) => column.name === "layout")) {
-    throw new Error("verses has no layout column; run 'npm run db:migrate:layout' first");
+    if (!dryRun) throw new Error("verses has no layout column; run 'npm run db:migrate:layout' first");
+    console.log("verses has no layout column yet: reporting as if every stored layout were empty");
+    layoutColumn = "NULL";
   }
   const lock = await readLock();
   let writes = 0;
