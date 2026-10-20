@@ -3,6 +3,7 @@
  */
 
 import type { Attribution, LexiconEntry, VerseWord } from "./lib/word-tagging.js";
+import type { LayoutItem } from "./lib/layout.js";
 
 export type { Attribution, LexiconEntry, VerseWord, WordPart } from "./lib/word-tagging.js";
 
@@ -45,6 +46,8 @@ export interface VerseRow {
   text: string;
   segments?: string | null;
   words?: string | null;
+  /** JSON array of LayoutItem; selected only for `layout=1` on /v1/chapters. */
+  layout?: string | null;
 }
 
 // API response types
@@ -139,6 +142,8 @@ export interface ChapterApiResponse {
     text: string;
     segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
     words?: VerseWord[];
+    /** Present with `layout=1` on a verse that opens a block or carries a heading or title. */
+    layout?: LayoutItem[];
   }>;
   verse_count: number;
   navigation: ChapterNavigation;

@@ -37,6 +37,7 @@ const SCHEMA_STATEMENTS = [
     text_plain TEXT NOT NULL DEFAULT '',
     segments TEXT,
     words TEXT,
+    layout TEXT,
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
@@ -183,8 +184,22 @@ async function seedWordData(db: D1Database): Promise<void> {
   }
 }
 
+/** A paragraph opening under a section heading: what db:backfill:layout writes. */
+export const webGenesis11Layout = [
+  { type: "heading", text: "The Creation", level: 2 },
+  { type: "text", text: "In the beginning God created the heaven and the earth.", block: "p" },
+] as const;
+
+async function seedLayoutData(db: D1Database): Promise<void> {
+  await db
+    .prepare("UPDATE verses SET layout = ? WHERE translation_id = 'web' AND book_id = 'GEN' AND chapter = 1 AND verse = 1")
+    .bind(JSON.stringify(webGenesis11Layout))
+    .run();
+}
+
 export async function setupTestDatabase(db: D1Database): Promise<void> {
   await applyTestSchema(db);
   await seedTestData(db);
   await seedWordData(db);
+  await seedLayoutData(db);
 }

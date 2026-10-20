@@ -439,10 +439,10 @@ export async function getChapterVerses(
   bookId: string,
   chapter: number,
   translationId: string,
-  options?: { includeWords?: boolean }
+  options?: { includeWords?: boolean; includeLayout?: boolean }
 ): Promise<DbResult<VerseRow[]>> {
   const query = `
-    SELECT ${VERSE_COLUMNS}${options?.includeWords ? ", words" : ""} FROM verses
+    SELECT ${VERSE_COLUMNS}${options?.includeWords ? ", words" : ""}${options?.includeLayout ? ", layout" : ""} FROM verses
     WHERE translation_id = ?
       AND book_id = ?
       AND chapter = ?

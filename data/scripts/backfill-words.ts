@@ -15,6 +15,8 @@
  *
  * Run `npm run db:migrate:sources` first too. Once a translation's stored text matches its
  * source exactly, the backfill records that source's revision on the translations row.
+ * Where verses.layout exists (db:migrate:layout), a verse whose text is rewritten gets its
+ * layout in the same statement; db:backfill:layout fills in the rest.
  */
 
 import { readFile, readdir, writeFile, access } from "fs/promises";
@@ -26,7 +28,7 @@ import { parseUSFXBuffer } from "../../src/lib/usfx-parse.js";
 import { readLock, sha256, type ParsedSource, type SourcesLock } from "./sources-lock.js";
 import { remoteExecute, remoteQuery } from "./d1-remote.js";
 
-type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[] };
+type ParsedVerse = { book: string; chapter: number; verse: number; text: string; segments?: unknown[]; words?: unknown[]; layout?: unknown[] };
 type ParsedTranslation = { source?: ParsedSource; verses: ParsedVerse[] };
 type StoredVerse = { book_id: string; chapter: number; verse: number; text: string; segments: string | null; words: string | null };
 const parsedDir = join(process.cwd(), "data", "parsed");
@@ -45,6 +47,10 @@ const lexiconOnly = process.argv.includes("--lexicon-only");
 const ids = lexiconOnly
   ? []
   : process.argv.find((arg) => arg.startsWith("--translations="))?.slice("--translations=".length).split(",") ?? allIds;
+
+// Set in main(): whether verses.layout exists (db:migrate:layout). A verse whose text this
+// rewrites gets its layout in the same statement, so it is never left partitioning old text.
+let hasLayoutColumn = false;
 
 function escapeSql(value: string): string { return value.replace(/'/g, "''"); }
 function sqlText(value: string | null): string { return value === null ? "NULL" : `'${escapeSql(value)}'`; }
@@ -160,7 +166,8 @@ async function backfillVerses(id: string, lock: SourcesLock): Promise<number> {
         continue;
       }
       const segments = verse.segments?.length ? JSON.stringify(verse.segments) : null;
-      statements.push(`UPDATE verses SET text = ${sqlText(verse.text)}, text_plain = ${sqlText(toSearchPlainText(id, verse.text))}, segments = ${sqlText(segments)} ${where};`);
+      const layout = hasLayoutColumn ? `, layout = ${sqlText(verse.layout?.length ? JSON.stringify(verse.layout) : null)}` : "";
+      statements.push(`UPDATE verses SET text = ${sqlText(verse.text)}, text_plain = ${sqlText(toSearchPlainText(id, verse.text))}, segments = ${sqlText(segments)}${layout} ${where};`);
       textUpdates++;
     } else {
       // Same text, different words-of-Jesus markup: the source revision marks it (as the BSB's
@@ -248,6 +255,7 @@ async function main() {
   if (!columns.some((column) => column.name === "source_sha256")) {
     throw new Error("translations has no source columns; run 'npm run db:migrate:sources' first");
   }
+  hasLayoutColumn = (await query<{ name: string }>("PRAGMA table_info(verses)")).some((column) => column.name === "layout");
   const lock = await readLock();
   let writes = 0;
   for (const id of ids) writes += await backfillVerses(id, lock);

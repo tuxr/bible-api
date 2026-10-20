@@ -26,6 +26,7 @@ interface ParsedVerse {
   text: string;
   segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
   words?: unknown[];
+  layout?: unknown[];
 }
 
 interface ParsedTranslation {
@@ -179,7 +180,8 @@ async function main() {
       const textPlain = toSearchPlainText(translationId, verse.text);
       const segments = verse.segments ? `'${escapeSql(JSON.stringify(verse.segments))}'` : "NULL";
       const words = verse.words?.length ? `'${escapeSql(JSON.stringify(verse.words))}'` : "NULL";
-      return `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments}, ${words});`;
+      const layout = verse.layout?.length ? `'${escapeSql(JSON.stringify(verse.layout))}'` : "NULL";
+      return `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words, layout) VALUES ('${translationId}', '${verse.book}', ${verse.chapter}, ${verse.verse}, '${escapeSql(verse.text)}', '${escapeSql(textPlain)}', ${segments}, ${words}, ${layout});`;
     });
     console.log(`  Inserting ${data.verses.length} verses...`);
     await write(`${translationId}_verses`, verseStatements, isProduction);

@@ -147,6 +147,39 @@ describe("GET /v1/chapters/:book/:chapter route", () => {
     expect(invalid.status).toBe(400);
   });
 
+  it("includes layout only under layout=1, and only where it partitions the verse text", async () => {
+    const layout = [
+      { type: "heading", text: "The Creation", level: 2 },
+      { type: "text", text: "Verse 1", block: "p" },
+    ];
+    getChapterVerses.mockResolvedValue({
+      success: true,
+      data: [
+        { ...genesisVerses[0], layout: JSON.stringify(layout) },
+        // Stale: written for other text. Never served wrong.
+        { ...genesisVerses[1], layout: JSON.stringify([{ type: "text", text: "Old verse 2", block: "p" }]) },
+      ],
+    });
+
+    const res = await chapters.request("/Genesis/1?layout=1", {}, createRouteEnv());
+    expect(res.status).toBe(200);
+    expect(getChapterVerses).toHaveBeenCalledWith(expect.anything(), "GEN", 1, "web", { includeWords: false, includeLayout: true });
+    const body = await parseJson<ChapterApiResponse>(res);
+    expect(body.verses[0]).toEqual({ verse: 1, text: "Verse 1", layout });
+    expect(Object.keys(body.verses[1]!)).toEqual(["verse", "text"]);
+  });
+
+  it("keeps the default response unchanged, and rejects an invalid layout flag", async () => {
+    getChapterVerses.mockResolvedValue({ success: true, data: genesisVerses });
+
+    await chapters.request("/Genesis/1", {}, createRouteEnv());
+    expect(getChapterVerses).toHaveBeenCalledWith(expect.anything(), "GEN", 1, "web", { includeWords: false, includeLayout: false });
+
+    const invalid = await chapters.request("/Genesis/1?layout=0", {}, createRouteEnv());
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({ error: "Invalid layout flag" });
+  });
+
   it("omits segments for unmarked verses even when opted in", async () => {
     getChapterVerses.mockResolvedValue({ success: true, data: genesisVerses });
 
