@@ -1,6 +1,6 @@
 /**
  * Bring an existing D1 database up to date with the current parse + tag output:
- *   1. verse text with USFX section headings removed (plus text_plain and segments),
+ *   1. verse text with USFX section headings and labels removed (plus text_plain and segments),
  *   2. per-word tags in verses.words,
  *   3. lexicon rows.
  *
@@ -94,7 +94,7 @@ const SOURCE_ZIPS: Record<string, string> = {
 };
 
 /**
- * What the parser produced before the heading and escaped-markup fixes, from the same
+ * What the parser produced before the heading, escaped-markup and label fixes, from the same
  * source files. A stored verse is only rewritten when it equals this: then the difference
  * is exactly those fixes, never an upstream revision that happens to look like one. A USFM
  * source never went through the old parser, so it has none: any change is a revision.
