@@ -23,6 +23,7 @@ describe("USFM parsing", () => {
           { text: " said Jesus,", speaker: "narrator" },
           { text: " “and you do not understand?", speaker: "jesus" },
         ],
+        layout: [{ type: "text", text: "“You are Israel’s teacher,” said Jesus, “and you do not understand?", block: "p" }],
       },
       { book: "JHN", chapter: 3, verse: 11, text: "Truly, I tell you.”", segments: [{ text: "Truly, I tell you.”", speaker: "jesus" }] },
     ]);
@@ -34,7 +35,10 @@ describe("USFM parsing", () => {
       "bsb",
     );
     expect(parsed.verses[0]!.segments).toEqual([{ text: "He said,", speaker: "narrator" }, { text: " “Come.", speaker: "jesus" }]);
-    expect(parsed.verses[1]).toEqual({ book: "MAT", chapter: 1, verse: 2, text: "And they came." });
+    expect(parsed.verses[1]).toEqual({
+      book: "MAT", chapter: 1, verse: 2, text: "And they came.",
+      layout: [{ type: "text", text: "And they came.", block: "p" }],
+    });
   });
 
   it("drops headings, references, footnotes, Psalm titles and acrostic letters, and keeps Selah", () => {

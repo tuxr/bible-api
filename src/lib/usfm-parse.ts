@@ -1,4 +1,15 @@
-import { buildVerse, cleanText, type ParsedTranslation, type ParsedVerse, type Speaker } from "./usfx-parse.js";
+import {
+  buildVerse,
+  cleanText,
+  headingLevel,
+  layoutBlock,
+  type LayoutBlock,
+  type LayoutItem,
+  type LayoutMark,
+  type ParsedTranslation,
+  type ParsedVerse,
+  type Speaker,
+} from "./usfx-parse.js";
 
 /**
  * USFM (Unified Standard Format Markers) parsing, for sources published as `.usfm` files rather
@@ -8,7 +19,8 @@ import { buildVerse, cleanText, type ParsedTranslation, type ParsedVerse, type S
  * Verse text follows the USFX parser's conventions, so a translation reads the same whichever
  * format it came from: headings, titles, cross-reference lines, footnotes and cross references
  * are dropped; paragraph and poetry breaks become spaces; `\wj … \wj*` becomes the `jesus`
- * segments, everything else in a marked verse `narrator`.
+ * segments, everything else in a marked verse `narrator`. The paragraphs, headings, titles and
+ * stanza breaks become the verse's `layout`, as in the USFX parser; `\r` lines are left out.
  */
 
 /**
@@ -62,6 +74,14 @@ export function parseUSFMBooks(files: readonly UsfmFile[], translationId: string
   return { id: translationId, name: translationId.toUpperCase(), language: "en", verses };
 }
 
+/** What a non-verse paragraph's text becomes in the layout; `null` leaves it out. */
+function labelOf(paragraph: string, book: string): ((text: string) => Exclude<LayoutItem, { type: "text" } | { type: "break" }>) | null {
+  if (/^(ms\d*|s\d*)$/.test(paragraph)) return (text) => ({ type: "heading", text, level: headingLevel(paragraph) });
+  if (paragraph === "qa" || (paragraph === "d" && book === "PSA")) return (text) => ({ type: "title", text });
+  if (paragraph === "sp") return (text) => ({ type: "speaker", text });
+  return null;
+}
+
 function parseBook(file: UsfmFile, clean: (text: string) => string): ParsedVerse[] {
   const book = /^\\id\s+([0-9A-Z]{3})/m.exec(file.content)?.[1];
   if (!book) throw new Error(`${file.name}: no \\id line`);
@@ -70,18 +90,30 @@ function parseBook(file: UsfmFile, clean: (text: string) => string): ParsedVerse
   let chapter = 0;
   let verse = 0;
   let runs: Array<{ text: string; speaker: Speaker }> = [];
+  let marks: LayoutMark[] = [];
   let inWj = false;
+  // Layout waiting for the next verse text: the block a paragraph opened, and labels and breaks.
+  let pendingBlock: LayoutBlock | undefined;
+  let pendingItems: LayoutMark["items"] = [];
+  let labelText = "";
 
   const append = (text: string, verseText: boolean) => {
+    if (!verseText) labelText += text;
     if (!verse || !verseText || !text) return;
+    if (text.trim() && (pendingBlock || pendingItems.length)) {
+      marks.push({ at: runs.map((run) => run.text).join("").length, ...(pendingBlock ? { block: pendingBlock } : {}), items: pendingItems });
+      pendingBlock = undefined;
+      pendingItems = [];
+    }
     const speaker: Speaker = inWj ? "jesus" : "narrator";
     const last = runs[runs.length - 1];
     if (last?.speaker === speaker) last.text += text;
     else runs.push({ text, speaker });
   };
   const flush = () => {
-    if (verse && runs.map((run) => run.text).join("").trim()) verses.push(buildVerse(book, chapter, verse, runs, clean));
+    if (verse && runs.map((run) => run.text).join("").trim()) verses.push(buildVerse(book, chapter, verse, runs, clean, marks));
     runs = [];
+    marks = [];
     verse = 0;
   };
 
@@ -90,6 +122,8 @@ function parseBook(file: UsfmFile, clean: (text: string) => string): ParsedVerse
     if (paragraph === "c") {
       flush();
       chapter = parseInt(line.slice(2), 10);
+      pendingBlock = undefined;
+      pendingItems = [];
       continue;
     }
     // A paragraph ends any character style left open, and its break reads as a space.
@@ -97,6 +131,13 @@ function parseBook(file: UsfmFile, clean: (text: string) => string): ParsedVerse
     append(" ", true);
     const verseText = !NON_VERSE_PARAGRAPHS.test(paragraph) && !(paragraph === "d" && book === "PSA");
     const body = paragraph ? line.slice(paragraph.length + 1).replace(/^ /, "") : line;
+    const label = verseText ? null : labelOf(paragraph, book);
+    labelText = "";
+    if (paragraph === "b") pendingItems.push({ type: "break" });
+    else if (verseText && paragraph) {
+      const block = layoutBlock(paragraph);
+      if (block !== undefined) pendingBlock = block ?? undefined;
+    }
 
     // Markers: \v N, notes (\f … \f*, \x … \x*, skipped whole), \wj / \wj*, \ref text|target\ref*,
     // and any other character marker, whose content is kept and the marker itself dropped. Only
@@ -113,6 +154,8 @@ function parseBook(file: UsfmFile, clean: (text: string) => string): ParsedVerse
       else if (match[4] !== undefined) inWj = match[4] !== "*";
     }
     append(body.slice(at), verseText);
+    const text = label ? clean(labelText) : "";
+    if (label && text) pendingItems.push(label(text));
   }
   flush();
   return verses;
