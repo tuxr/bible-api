@@ -56,7 +56,7 @@ A layout dry run works before step 2: it reads every stored layout as empty. The
 | step 3, `web` text fixes | 37,499 | 48 verses (Psalm 119 ×21, Song of Songs ×27) |
 | step 4, layouts | 136,574 | 53,713 (web 17,531, kjv 12,801, bsb 20,617, tcgnt 1,835, wlc 929) |
 
-Step 4's dry run also listed the 48 `web` verses as skipped (stored text differs), which step 3 writes with their layout. A local rehearsal from production's shape (no column, the 48 old texts) ran steps 2 to 4 to the same numbers.
+Step 4's dry run also listed the 48 `web` verses as skipped (stored text differs), which step 3 writes with their layout. A local rehearsal from production's shape (no column, the 48 old texts) ran steps 2 to 4 to the same numbers; a second layout run wrote nothing, and every one of the 136,574 stored verses then matched the parse in text and layout.
 
 ## Verify
 
