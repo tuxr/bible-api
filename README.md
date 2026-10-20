@@ -118,6 +118,33 @@ GET /v1/chapters/Luke/9?translation=tcgnt&words=1
 - Fields that aren't known are omitted. A few words where the text departs from the tagged source have only `surface`.
 - `lexicon` holds only the entries this chapter's words point at.
 
+**Layout (opt-in):** `layout=1` adds each verse's place on the page: where paragraphs and poetry lines begin, the section headings and Psalm titles above them, and stanza breaks. Without `layout=1` the payload is unchanged; `text` is always the whole verse.
+
+```
+GET /v1/chapters/Psalms/23?translation=bsb&layout=1
+```
+
+```json
+{
+  "verses": [
+    {
+      "verse": 1,
+      "text": "The LORD is my shepherd; I shall not want.",
+      "layout": [
+        { "type": "heading", "text": "The LORD Is My Shepherd", "level": 2 },
+        { "type": "title", "text": "A Psalm of David." },
+        { "type": "text", "text": "The LORD is my shepherd;", "block": "q1" },
+        { "type": "text", "text": " I shall not want.", "block": "q2" }
+      ]
+    }
+  ]
+}
+```
+
+- `layout` is in reading order. Its `text` items join to exactly `text`, as `segments` do; one with a `block` starts a new paragraph or line of that kind: `p` (paragraph), `m` (flush, no indent), `pi` (indented), `q1`–`q3` (poetry line, by indent), `qr` (right-aligned), `pc` (centred), `li1`–`li2` (list item). A verse whose first `text` item has no `block` continues the block the previous verse is in.
+- `heading` (`level` 1 for a major division such as "BOOK 2", 2 for a section, 3 for a subsection), `title` (a Psalm's superscription, and Psalm 119's letters in `web` and `bsb`) and `speaker` (Song of Songs speaker labels in `web`) are not verse text: they stand before the text that follows them. `break` is a stanza break.
+- A verse inside a paragraph has no `layout` key. A paragraph or heading can start mid-verse; the items place it exactly.
+
 ### Lexicon
 ```
 GET /v1/lexicon/G1841

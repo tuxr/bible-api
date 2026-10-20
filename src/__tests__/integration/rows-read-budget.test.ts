@@ -97,6 +97,13 @@ describe("rows read per request", () => {
     expect(rowsRead).toBeLessThanOrEqual(MAX_ROWS_PER_REQUEST);
   });
 
+  it("GET /v1/chapters/John/3 (web) with layout=1 reads no more than without it", async () => {
+    const { res, rowsRead } = await measure("/v1/chapters/John/3?translation=web&layout=1");
+    expect(res.status).toBe(200);
+    const body = await parseJson<ChapterApiResponse>(res);
+    expect(rowsRead).toBeLessThanOrEqual(body.verses.length + SLACK);
+  });
+
   it("GET /v1/chapters/John/3?translation=tcgnt&segments=1&words=1 reads about the verses and lexicon entries it returns", async () => {
     const { res, rowsRead } = await measure("/v1/chapters/John/3?translation=tcgnt&segments=1&words=1");
     expect(res.status).toBe(200);

@@ -33,7 +33,7 @@ import { TRANSLATION_META } from "./translation-meta.js";
  * Bump when the app would need a code change to read the file: a table or column added,
  * removed or reinterpreted. The app pins a file by version in bible-ios/Data/bible-db.lock.json.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const PARSED_DIR = join(process.cwd(), "data", "parsed");
 const SCHEMA_PATH = join(process.cwd(), "schemas", "schema.sql");
@@ -46,6 +46,7 @@ interface ParsedVerse {
   text: string;
   segments?: Array<{ text: string; speaker: "jesus" | "narrator" }>;
   words?: unknown[];
+  layout?: unknown[];
 }
 
 interface ParsedTranslation {
@@ -183,8 +184,8 @@ async function main() {
   );
   // Matches db:seed, which keeps the first of any duplicate verse.
   const insertVerse = db.prepare(
-    `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO verses (translation_id, book_id, chapter, verse, text, text_plain, segments, words, layout)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertWords = wordsDb.prepare(
     "INSERT OR IGNORE INTO verse_words (translation_id, book_id, chapter, verse, words) VALUES (?, ?, ?, ?, ?)",
@@ -206,7 +207,8 @@ async function main() {
     let tagged = 0;
     for (const v of t.verses) {
       const segments = v.segments ? JSON.stringify(v.segments) : null;
-      const result = insertVerse.run(t.id, v.book, v.chapter, v.verse, v.text, toSearchPlainText(t.id, v.text), segments, null);
+      const layout = v.layout?.length ? JSON.stringify(v.layout) : null;
+      const result = insertVerse.run(t.id, v.book, v.chapter, v.verse, v.text, toSearchPlainText(t.id, v.text), segments, null, layout);
       if (!result.changes) continue;
       inserted++;
       if (v.words?.length) {

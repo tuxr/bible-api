@@ -13,6 +13,7 @@ import { findBook, getChapterNavigation } from "../lib/books-data.js";
 import { parseDecimalInteger } from "../lib/numbers.js";
 import { badRequest, notFound, serviceUnavailable, jsonWithCache, CACHE_IMMUTABLE } from "../lib/response.js";
 import { parseSegmentsFlag, parseStoredSegments } from "../lib/segments.js";
+import { parseStoredLayout } from "../lib/layout.js";
 import { collectLexiconIds, parseStoredWords, toLexiconMap } from "../lib/words.js";
 import { wordAttribution } from "../lib/word-sources.js";
 
@@ -29,6 +30,10 @@ chapters.get("/:book/:chapter", async (c) => {
   const wordsFlag = parseSegmentsFlag(c.req.query("words"));
   if (wordsFlag === "invalid") return badRequest(c, "Invalid words flag");
   const includeWords = wordsFlag === "on";
+  // Paragraphs, poetry lines, headings and titles (opt-in, same values).
+  const layoutFlag = parseSegmentsFlag(c.req.query("layout"));
+  if (layoutFlag === "invalid") return badRequest(c, "Invalid layout flag");
+  const includeLayout = layoutFlag === "on";
 
   // Resolve book (accepts "Genesis", "GEN", "Gen", etc.)
   const book = findBook(bookParam);
@@ -59,7 +64,7 @@ chapters.get("/:book/:chapter", async (c) => {
   const translation = translationResult.data;
 
   // Fetch verses for this chapter
-  const versesResult = await getChapterVerses(c.env.DB, book.id, chapter, translationId, { includeWords });
+  const versesResult = await getChapterVerses(c.env.DB, book.id, chapter, translationId, { includeWords, includeLayout });
   if (!versesResult.success) {
     return serviceUnavailable(c, versesResult.error);
   }
@@ -102,12 +107,16 @@ chapters.get("/:book/:chapter", async (c) => {
       name: translation.name,
       language: translation.language,
     },
-    verses: verseRows.map((v) => ({
-      verse: v.verse,
-      text: v.text,
-      ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
-      ...(wordsByVerse.has(v.verse) ? { words: wordsByVerse.get(v.verse) } : {}),
-    })),
+    verses: verseRows.map((v) => {
+      const layout = includeLayout ? parseStoredLayout(v.layout, v.text) : undefined;
+      return {
+        verse: v.verse,
+        text: v.text,
+        ...(includeSegments && parseStoredSegments(v.segments) ? { segments: parseStoredSegments(v.segments) } : {}),
+        ...(wordsByVerse.has(v.verse) ? { words: wordsByVerse.get(v.verse) } : {}),
+        ...(layout ? { layout } : {}),
+      };
+    }),
     verse_count: verseRows.length,
     navigation,
     ...(lexicon ? { lexicon, attribution: wordAttribution(translation.id) } : {}),

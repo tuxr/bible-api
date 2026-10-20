@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS verses (
     text_plain TEXT NOT NULL DEFAULT '',
     segments TEXT,
     words TEXT, -- JSON array of per-word tags (lemma, Strong's, morphology, gloss); NULL when untagged
+    layout TEXT, -- JSON array of LayoutItem (src/lib/layout.ts): blocks, headings, titles; NULL inside a paragraph
     FOREIGN KEY (translation_id) REFERENCES translations(id),
     FOREIGN KEY (book_id) REFERENCES books(id),
     UNIQUE (translation_id, book_id, chapter, verse)
