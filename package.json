@@ -30,7 +30,7 @@
     "db:migrate:sources": "tsx data/scripts/migrate-sources.ts"
   },
   "dependencies": {
-    "hono": "^4.13.7"
+    "hono": "^4.13.11"
   },
   "overrides": {
     "esbuild": "0.28.1"
